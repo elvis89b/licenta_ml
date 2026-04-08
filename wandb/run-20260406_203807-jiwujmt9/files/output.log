@@ -1,0 +1,375 @@
+Image Size: (256, 256)
+Batch Size: 16
+LR: 0.0001
+Epochs: 500
+Early Stopping Patience: 50
+Use GIN: True
+GIN p: 0.5
+
+Dataset Size:
+Train: 2046 - Valid: 255 - Test: 257
+/home/ubuntu/Desktop/licenta_elvis/FocusNet/model/FocusNet.py:190: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  save_model = torch.load(path)
+
+train model: FocusNet
+/home/ubuntu/anaconda3/envs/FocusNet/lib/python3.8/site-packages/torch/optim/lr_scheduler.py:60: UserWarning: The verbose parameter is deprecated. Please use get_last_lr() to access the learning rate.
+  warnings.warn(
+Optimizer: Adam
+Loss: BCE Dice Loss
+
+Valid F1 improved from 0.0000 to 0.8353. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 01 | Epoch Time: 1m 3s
+	Train Loss: 5.4346 - Jaccard: 0.4878 - F1: 0.6134 - Recall: 0.8557 - Precision: 0.5410
+	 Val. Loss: 4.1686 - Jaccard: 0.7320 - F1: 0.8353 - Recall: 0.9396 - Precision: 0.7737
+
+Epoch: 02 | Epoch Time: 1m 2s
+	Train Loss: 4.4898 - Jaccard: 0.6553 - F1: 0.7666 - Recall: 0.9077 - Precision: 0.7090
+	 Val. Loss: 4.0007 - Jaccard: 0.7094 - F1: 0.8169 - Recall: 0.9811 - Precision: 0.7232
+
+Valid F1 improved from 0.8353 to 0.8407. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 03 | Epoch Time: 1m 2s
+	Train Loss: 4.0185 - Jaccard: 0.7085 - F1: 0.8090 - Recall: 0.9231 - Precision: 0.7549
+	 Val. Loss: 3.6701 - Jaccard: 0.7424 - F1: 0.8407 - Recall: 0.9773 - Precision: 0.7584
+
+Valid F1 improved from 0.8407 to 0.8898. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 04 | Epoch Time: 1m 6s
+	Train Loss: 3.6288 - Jaccard: 0.7383 - F1: 0.8316 - Recall: 0.9256 - Precision: 0.7851
+	 Val. Loss: 3.1514 - Jaccard: 0.8096 - F1: 0.8898 - Recall: 0.9799 - Precision: 0.8249
+
+Valid F1 improved from 0.8898 to 0.9189. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 05 | Epoch Time: 1m 3s
+	Train Loss: 3.2840 - Jaccard: 0.7589 - F1: 0.8463 - Recall: 0.9272 - Precision: 0.8062
+	 Val. Loss: 2.6433 - Jaccard: 0.8601 - F1: 0.9189 - Recall: 0.9290 - Precision: 0.9204
+
+Epoch: 06 | Epoch Time: 1m 6s
+	Train Loss: 2.9348 - Jaccard: 0.7723 - F1: 0.8543 - Recall: 0.9197 - Precision: 0.8299
+	 Val. Loss: 2.5615 - Jaccard: 0.8207 - F1: 0.8924 - Recall: 0.9668 - Precision: 0.8473
+
+Epoch: 07 | Epoch Time: 1m 3s
+	Train Loss: 2.6751 - Jaccard: 0.7887 - F1: 0.8653 - Recall: 0.9226 - Precision: 0.8465
+	 Val. Loss: 2.0817 - Jaccard: 0.8579 - F1: 0.9187 - Recall: 0.9512 - Precision: 0.9005
+
+Epoch: 08 | Epoch Time: 1m 2s
+	Train Loss: 2.5117 - Jaccard: 0.7865 - F1: 0.8650 - Recall: 0.9134 - Precision: 0.8515
+	 Val. Loss: 2.0409 - Jaccard: 0.8397 - F1: 0.9047 - Recall: 0.9466 - Precision: 0.8837
+
+Epoch: 09 | Epoch Time: 1m 3s
+	Train Loss: 2.3465 - Jaccard: 0.8014 - F1: 0.8736 - Recall: 0.9153 - Precision: 0.8626
+	 Val. Loss: 1.8895 - Jaccard: 0.8543 - F1: 0.9124 - Recall: 0.9280 - Precision: 0.9092
+
+Valid F1 improved from 0.9189 to 0.9266. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 10 | Epoch Time: 1m 4s
+	Train Loss: 2.0948 - Jaccard: 0.8043 - F1: 0.8746 - Recall: 0.9089 - Precision: 0.8745
+	 Val. Loss: 1.6759 - Jaccard: 0.8704 - F1: 0.9266 - Recall: 0.9560 - Precision: 0.9081
+
+Epoch: 11 | Epoch Time: 1m 5s
+	Train Loss: 1.8159 - Jaccard: 0.8203 - F1: 0.8878 - Recall: 0.9154 - Precision: 0.8886
+	 Val. Loss: 1.4649 - Jaccard: 0.8585 - F1: 0.9158 - Recall: 0.9241 - Precision: 0.9251
+
+Valid F1 improved from 0.9266 to 0.9349. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 12 | Epoch Time: 1m 5s
+	Train Loss: 1.5870 - Jaccard: 0.8281 - F1: 0.8929 - Recall: 0.9171 - Precision: 0.8956
+	 Val. Loss: 1.5410 - Jaccard: 0.8854 - F1: 0.9349 - Recall: 0.9559 - Precision: 0.9233
+
+Epoch: 13 | Epoch Time: 1m 3s
+	Train Loss: 1.5304 - Jaccard: 0.8311 - F1: 0.8952 - Recall: 0.9139 - Precision: 0.9024
+	 Val. Loss: 1.4185 - Jaccard: 0.8681 - F1: 0.9227 - Recall: 0.9457 - Precision: 0.9178
+
+Epoch: 14 | Epoch Time: 1m 2s
+	Train Loss: 1.5447 - Jaccard: 0.8250 - F1: 0.8896 - Recall: 0.9070 - Precision: 0.9002
+	 Val. Loss: 2.8382 - Jaccard: 0.8301 - F1: 0.8910 - Recall: 0.9493 - Precision: 0.8732
+
+Epoch: 15 | Epoch Time: 1m 3s
+	Train Loss: 1.5933 - Jaccard: 0.8100 - F1: 0.8781 - Recall: 0.8949 - Precision: 0.8954
+	 Val. Loss: 1.2178 - Jaccard: 0.8752 - F1: 0.9273 - Recall: 0.9548 - Precision: 0.9160
+
+Epoch: 16 | Epoch Time: 1m 6s
+	Train Loss: 1.2100 - Jaccard: 0.8456 - F1: 0.9055 - Recall: 0.9170 - Precision: 0.9162
+	 Val. Loss: 1.0310 - Jaccard: 0.8747 - F1: 0.9275 - Recall: 0.9225 - Precision: 0.9448
+
+Epoch: 17 | Epoch Time: 1m 5s
+	Train Loss: 1.2416 - Jaccard: 0.8393 - F1: 0.9001 - Recall: 0.9095 - Precision: 0.9123
+	 Val. Loss: 1.0846 - Jaccard: 0.8769 - F1: 0.9307 - Recall: 0.9207 - Precision: 0.9505
+
+Valid F1 improved from 0.9349 to 0.9389. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 18 | Epoch Time: 1m 8s
+	Train Loss: 1.0166 - Jaccard: 0.8534 - F1: 0.9105 - Recall: 0.9164 - Precision: 0.9240
+	 Val. Loss: 0.9737 - Jaccard: 0.8912 - F1: 0.9389 - Recall: 0.9502 - Precision: 0.9361
+
+Epoch: 19 | Epoch Time: 1m 11s
+	Train Loss: 1.0637 - Jaccard: 0.8514 - F1: 0.9096 - Recall: 0.9149 - Precision: 0.9218
+	 Val. Loss: 0.9527 - Jaccard: 0.8833 - F1: 0.9342 - Recall: 0.9390 - Precision: 0.9403
+
+Epoch: 20 | Epoch Time: 1m 6s
+	Train Loss: 0.8905 - Jaccard: 0.8640 - F1: 0.9191 - Recall: 0.9223 - Precision: 0.9294
+	 Val. Loss: 0.9443 - Jaccard: 0.8869 - F1: 0.9352 - Recall: 0.9580 - Precision: 0.9217
+
+Epoch: 21 | Epoch Time: 1m 3s
+	Train Loss: 1.0446 - Jaccard: 0.8492 - F1: 0.9063 - Recall: 0.9106 - Precision: 0.9253
+	 Val. Loss: 0.8753 - Jaccard: 0.8737 - F1: 0.9242 - Recall: 0.9342 - Precision: 0.9310
+
+Valid F1 improved from 0.9389 to 0.9438. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 22 | Epoch Time: 1m 5s
+	Train Loss: 0.8519 - Jaccard: 0.8617 - F1: 0.9163 - Recall: 0.9185 - Precision: 0.9326
+	 Val. Loss: 0.8362 - Jaccard: 0.9002 - F1: 0.9438 - Recall: 0.9467 - Precision: 0.9496
+
+Epoch: 23 | Epoch Time: 1m 1s
+	Train Loss: 0.7917 - Jaccard: 0.8686 - F1: 0.9217 - Recall: 0.9224 - Precision: 0.9354
+	 Val. Loss: 0.7738 - Jaccard: 0.8968 - F1: 0.9421 - Recall: 0.9502 - Precision: 0.9428
+
+Epoch: 24 | Epoch Time: 1m 3s
+	Train Loss: 0.7386 - Jaccard: 0.8738 - F1: 0.9248 - Recall: 0.9252 - Precision: 0.9365
+	 Val. Loss: 0.7822 - Jaccard: 0.8981 - F1: 0.9430 - Recall: 0.9366 - Precision: 0.9574
+
+Valid F1 improved from 0.9438 to 0.9454. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 25 | Epoch Time: 1m 6s
+	Train Loss: 0.6825 - Jaccard: 0.8794 - F1: 0.9293 - Recall: 0.9288 - Precision: 0.9425
+	 Val. Loss: 0.7725 - Jaccard: 0.9016 - F1: 0.9454 - Recall: 0.9626 - Precision: 0.9355
+
+Epoch: 26 | Epoch Time: 1m 5s
+	Train Loss: 0.6701 - Jaccard: 0.8831 - F1: 0.9313 - Recall: 0.9305 - Precision: 0.9437
+	 Val. Loss: 0.7102 - Jaccard: 0.8955 - F1: 0.9412 - Recall: 0.9381 - Precision: 0.9535
+
+Epoch: 27 | Epoch Time: 1m 2s
+	Train Loss: 0.7082 - Jaccard: 0.8779 - F1: 0.9287 - Recall: 0.9279 - Precision: 0.9405
+	 Val. Loss: 0.7000 - Jaccard: 0.8937 - F1: 0.9402 - Recall: 0.9361 - Precision: 0.9542
+
+Epoch: 28 | Epoch Time: 1m 6s
+	Train Loss: 0.6570 - Jaccard: 0.8796 - F1: 0.9288 - Recall: 0.9275 - Precision: 0.9405
+	 Val. Loss: 0.6894 - Jaccard: 0.9020 - F1: 0.9451 - Recall: 0.9406 - Precision: 0.9578
+
+Epoch: 29 | Epoch Time: 1m 6s
+	Train Loss: 1.0248 - Jaccard: 0.8408 - F1: 0.8978 - Recall: 0.9028 - Precision: 0.9210
+	 Val. Loss: 0.7760 - Jaccard: 0.8783 - F1: 0.9311 - Recall: 0.9171 - Precision: 0.9568
+
+Epoch: 30 | Epoch Time: 1m 3s
+	Train Loss: 0.7356 - Jaccard: 0.8686 - F1: 0.9208 - Recall: 0.9193 - Precision: 0.9375
+	 Val. Loss: 0.7051 - Jaccard: 0.8917 - F1: 0.9385 - Recall: 0.9427 - Precision: 0.9450
+
+Epoch: 31 | Epoch Time: 1m 2s
+	Train Loss: 0.6597 - Jaccard: 0.8795 - F1: 0.9288 - Recall: 0.9265 - Precision: 0.9426
+	 Val. Loss: 0.6691 - Jaccard: 0.9003 - F1: 0.9440 - Recall: 0.9370 - Precision: 0.9604
+
+Epoch: 32 | Epoch Time: 1m 2s
+	Train Loss: 0.6385 - Jaccard: 0.8822 - F1: 0.9313 - Recall: 0.9290 - Precision: 0.9435
+	 Val. Loss: 0.6546 - Jaccard: 0.9012 - F1: 0.9453 - Recall: 0.9433 - Precision: 0.9543
+
+Valid F1 improved from 0.9454 to 0.9471. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 33 | Epoch Time: 1m 3s
+	Train Loss: 0.5787 - Jaccard: 0.8880 - F1: 0.9348 - Recall: 0.9330 - Precision: 0.9464
+	 Val. Loss: 0.6559 - Jaccard: 0.9037 - F1: 0.9471 - Recall: 0.9454 - Precision: 0.9549
+
+Epoch: 34 | Epoch Time: 1m 1s
+	Train Loss: 0.5885 - Jaccard: 0.8900 - F1: 0.9356 - Recall: 0.9334 - Precision: 0.9490
+	 Val. Loss: 0.6991 - Jaccard: 0.8987 - F1: 0.9439 - Recall: 0.9615 - Precision: 0.9342
+
+Epoch: 35 | Epoch Time: 1m 4s
+	Train Loss: 0.5501 - Jaccard: 0.8919 - F1: 0.9376 - Recall: 0.9350 - Precision: 0.9483
+	 Val. Loss: 0.6110 - Jaccard: 0.9017 - F1: 0.9450 - Recall: 0.9363 - Precision: 0.9624
+
+Valid F1 improved from 0.9471 to 0.9496. Saving checkpoint: files/center_wise/FocusNet/checkpoint.pth
+Epoch: 36 | Epoch Time: 1m 4s
+	Train Loss: 0.5452 - Jaccard: 0.8947 - F1: 0.9399 - Recall: 0.9370 - Precision: 0.9492
+	 Val. Loss: 0.6164 - Jaccard: 0.9091 - F1: 0.9496 - Recall: 0.9508 - Precision: 0.9554
+
+Epoch: 37 | Epoch Time: 1m 4s
+	Train Loss: 0.5765 - Jaccard: 0.8875 - F1: 0.9345 - Recall: 0.9324 - Precision: 0.9482
+	 Val. Loss: 0.7478 - Jaccard: 0.8845 - F1: 0.9322 - Recall: 0.9312 - Precision: 0.9498
+
+Epoch: 38 | Epoch Time: 1m 5s
+	Train Loss: 0.7138 - Jaccard: 0.8653 - F1: 0.9192 - Recall: 0.9190 - Precision: 0.9376
+	 Val. Loss: 1.1709 - Jaccard: 0.8593 - F1: 0.9133 - Recall: 0.9324 - Precision: 0.9197
+
+Epoch: 39 | Epoch Time: 1m 2s
+	Train Loss: 0.6306 - Jaccard: 0.8793 - F1: 0.9288 - Recall: 0.9264 - Precision: 0.9432
+	 Val. Loss: 0.6741 - Jaccard: 0.8993 - F1: 0.9430 - Recall: 0.9425 - Precision: 0.9530
+
+Epoch: 40 | Epoch Time: 1m 0s
+	Train Loss: 0.5823 - Jaccard: 0.8864 - F1: 0.9335 - Recall: 0.9314 - Precision: 0.9461
+	 Val. Loss: 0.6824 - Jaccard: 0.9016 - F1: 0.9436 - Recall: 0.9473 - Precision: 0.9493
+
+Epoch: 41 | Epoch Time: 1m 0s
+	Train Loss: 0.5787 - Jaccard: 0.8856 - F1: 0.9330 - Recall: 0.9315 - Precision: 0.9450
+	 Val. Loss: 0.6968 - Jaccard: 0.8947 - F1: 0.9403 - Recall: 0.9339 - Precision: 0.9577
+
+Epoch: 42 | Epoch Time: 1m 0s
+	Train Loss: 0.5204 - Jaccard: 0.8942 - F1: 0.9388 - Recall: 0.9357 - Precision: 0.9510
+	 Val. Loss: 0.6806 - Jaccard: 0.9034 - F1: 0.9457 - Recall: 0.9474 - Precision: 0.9529
+
+Epoch: 43 | Epoch Time: 1m 4s
+	Train Loss: 0.5028 - Jaccard: 0.8982 - F1: 0.9411 - Recall: 0.9381 - Precision: 0.9536
+	 Val. Loss: 0.6550 - Jaccard: 0.9037 - F1: 0.9457 - Recall: 0.9462 - Precision: 0.9542
+
+Epoch: 44 | Epoch Time: 1m 2s
+	Train Loss: 0.5101 - Jaccard: 0.9005 - F1: 0.9437 - Recall: 0.9415 - Precision: 0.9525
+	 Val. Loss: 0.6337 - Jaccard: 0.9036 - F1: 0.9456 - Recall: 0.9417 - Precision: 0.9586
+
+Epoch: 45 | Epoch Time: 1m 5s
+	Train Loss: 0.4893 - Jaccard: 0.9001 - F1: 0.9427 - Recall: 0.9395 - Precision: 0.9544
+	 Val. Loss: 0.6311 - Jaccard: 0.9048 - F1: 0.9467 - Recall: 0.9488 - Precision: 0.9528
+
+Epoch: 46 | Epoch Time: 1m 3s
+	Train Loss: 0.4820 - Jaccard: 0.9018 - F1: 0.9440 - Recall: 0.9417 - Precision: 0.9540
+	 Val. Loss: 0.6144 - Jaccard: 0.9053 - F1: 0.9470 - Recall: 0.9474 - Precision: 0.9547
+
+Epoch: 47 | Epoch Time: 1m 4s
+	Train Loss: 0.4722 - Jaccard: 0.9030 - F1: 0.9450 - Recall: 0.9418 - Precision: 0.9543
+	 Val. Loss: 0.6145 - Jaccard: 0.9067 - F1: 0.9480 - Recall: 0.9514 - Precision: 0.9523
+
+Epoch: 48 | Epoch Time: 1m 2s
+	Train Loss: 0.4743 - Jaccard: 0.9043 - F1: 0.9451 - Recall: 0.9439 - Precision: 0.9539
+	 Val. Loss: 0.6119 - Jaccard: 0.9065 - F1: 0.9479 - Recall: 0.9484 - Precision: 0.9552
+
+Epoch: 49 | Epoch Time: 1m 2s
+	Train Loss: 0.4788 - Jaccard: 0.9044 - F1: 0.9459 - Recall: 0.9423 - Precision: 0.9561
+	 Val. Loss: 0.6021 - Jaccard: 0.9060 - F1: 0.9476 - Recall: 0.9458 - Precision: 0.9571
+
+Epoch: 50 | Epoch Time: 1m 0s
+	Train Loss: 0.4655 - Jaccard: 0.9037 - F1: 0.9452 - Recall: 0.9426 - Precision: 0.9552
+	 Val. Loss: 0.6166 - Jaccard: 0.9064 - F1: 0.9479 - Recall: 0.9479 - Precision: 0.9555
+
+Epoch: 51 | Epoch Time: 1m 0s
+	Train Loss: 0.4778 - Jaccard: 0.9024 - F1: 0.9441 - Recall: 0.9412 - Precision: 0.9537
+	 Val. Loss: 0.6153 - Jaccard: 0.9065 - F1: 0.9479 - Recall: 0.9469 - Precision: 0.9567
+
+Epoch: 52 | Epoch Time: 1m 3s
+	Train Loss: 0.4604 - Jaccard: 0.9049 - F1: 0.9459 - Recall: 0.9426 - Precision: 0.9576
+	 Val. Loss: 0.6106 - Jaccard: 0.9065 - F1: 0.9479 - Recall: 0.9474 - Precision: 0.9561
+
+Epoch: 53 | Epoch Time: 1m 2s
+	Train Loss: 0.4624 - Jaccard: 0.9056 - F1: 0.9472 - Recall: 0.9442 - Precision: 0.9562
+	 Val. Loss: 0.6153 - Jaccard: 0.9069 - F1: 0.9482 - Recall: 0.9485 - Precision: 0.9555
+
+Epoch: 54 | Epoch Time: 1m 5s
+	Train Loss: 0.4731 - Jaccard: 0.9047 - F1: 0.9456 - Recall: 0.9431 - Precision: 0.9549
+	 Val. Loss: 0.6017 - Jaccard: 0.9059 - F1: 0.9475 - Recall: 0.9444 - Precision: 0.9585
+
+Epoch: 55 | Epoch Time: 1m 4s
+	Train Loss: 0.4814 - Jaccard: 0.9042 - F1: 0.9455 - Recall: 0.9424 - Precision: 0.9544
+	 Val. Loss: 0.6122 - Jaccard: 0.9065 - F1: 0.9478 - Recall: 0.9472 - Precision: 0.9563
+
+Epoch: 56 | Epoch Time: 1m 3s
+	Train Loss: 0.4686 - Jaccard: 0.9042 - F1: 0.9455 - Recall: 0.9419 - Precision: 0.9566
+	 Val. Loss: 0.6076 - Jaccard: 0.9065 - F1: 0.9478 - Recall: 0.9465 - Precision: 0.9569
+
+Epoch: 57 | Epoch Time: 1m 3s
+	Train Loss: 0.4569 - Jaccard: 0.9046 - F1: 0.9453 - Recall: 0.9434 - Precision: 0.9539
+	 Val. Loss: 0.6246 - Jaccard: 0.9070 - F1: 0.9482 - Recall: 0.9494 - Precision: 0.9547
+
+Epoch: 58 | Epoch Time: 1m 4s
+	Train Loss: 0.4675 - Jaccard: 0.9058 - F1: 0.9466 - Recall: 0.9439 - Precision: 0.9559
+	 Val. Loss: 0.6161 - Jaccard: 0.9068 - F1: 0.9480 - Recall: 0.9483 - Precision: 0.9555
+
+Epoch: 59 | Epoch Time: 1m 1s
+	Train Loss: 0.4635 - Jaccard: 0.9048 - F1: 0.9457 - Recall: 0.9431 - Precision: 0.9545
+	 Val. Loss: 0.6362 - Jaccard: 0.9074 - F1: 0.9484 - Recall: 0.9498 - Precision: 0.9547
+
+Epoch: 60 | Epoch Time: 1m 2s
+	Train Loss: 0.4667 - Jaccard: 0.9055 - F1: 0.9467 - Recall: 0.9442 - Precision: 0.9566
+	 Val. Loss: 0.6331 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9489 - Precision: 0.9553
+
+Epoch: 61 | Epoch Time: 0m 59s
+	Train Loss: 0.4659 - Jaccard: 0.9042 - F1: 0.9456 - Recall: 0.9419 - Precision: 0.9567
+	 Val. Loss: 0.6400 - Jaccard: 0.9073 - F1: 0.9484 - Recall: 0.9496 - Precision: 0.9548
+
+Epoch: 62 | Epoch Time: 1m 0s
+	Train Loss: 0.4565 - Jaccard: 0.9059 - F1: 0.9467 - Recall: 0.9439 - Precision: 0.9564
+	 Val. Loss: 0.6122 - Jaccard: 0.9069 - F1: 0.9481 - Recall: 0.9477 - Precision: 0.9563
+
+Epoch: 63 | Epoch Time: 1m 1s
+	Train Loss: 0.4617 - Jaccard: 0.9066 - F1: 0.9468 - Recall: 0.9440 - Precision: 0.9564
+	 Val. Loss: 0.6181 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9485 - Precision: 0.9557
+
+Epoch: 64 | Epoch Time: 1m 3s
+	Train Loss: 0.4643 - Jaccard: 0.9058 - F1: 0.9466 - Recall: 0.9449 - Precision: 0.9538
+	 Val. Loss: 0.6319 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9485 - Precision: 0.9556
+
+Epoch: 65 | Epoch Time: 1m 1s
+	Train Loss: 0.4584 - Jaccard: 0.9055 - F1: 0.9466 - Recall: 0.9439 - Precision: 0.9555
+	 Val. Loss: 0.6180 - Jaccard: 0.9070 - F1: 0.9481 - Recall: 0.9474 - Precision: 0.9566
+
+Epoch: 66 | Epoch Time: 1m 0s
+	Train Loss: 0.4642 - Jaccard: 0.9046 - F1: 0.9459 - Recall: 0.9424 - Precision: 0.9561
+	 Val. Loss: 0.6245 - Jaccard: 0.9073 - F1: 0.9483 - Recall: 0.9489 - Precision: 0.9554
+
+Epoch: 67 | Epoch Time: 0m 58s
+	Train Loss: 0.4686 - Jaccard: 0.9041 - F1: 0.9450 - Recall: 0.9425 - Precision: 0.9543
+	 Val. Loss: 0.6124 - Jaccard: 0.9066 - F1: 0.9479 - Recall: 0.9468 - Precision: 0.9569
+
+Epoch: 68 | Epoch Time: 0m 57s
+	Train Loss: 0.4584 - Jaccard: 0.9059 - F1: 0.9468 - Recall: 0.9438 - Precision: 0.9547
+	 Val. Loss: 0.6335 - Jaccard: 0.9074 - F1: 0.9484 - Recall: 0.9496 - Precision: 0.9549
+
+Epoch: 69 | Epoch Time: 0m 57s
+	Train Loss: 0.4682 - Jaccard: 0.9040 - F1: 0.9451 - Recall: 0.9426 - Precision: 0.9555
+	 Val. Loss: 0.6323 - Jaccard: 0.9072 - F1: 0.9483 - Recall: 0.9489 - Precision: 0.9554
+
+Epoch: 70 | Epoch Time: 0m 59s
+	Train Loss: 0.4614 - Jaccard: 0.9055 - F1: 0.9461 - Recall: 0.9432 - Precision: 0.9566
+	 Val. Loss: 0.6169 - Jaccard: 0.9070 - F1: 0.9482 - Recall: 0.9475 - Precision: 0.9566
+
+Epoch: 71 | Epoch Time: 0m 58s
+	Train Loss: 0.4634 - Jaccard: 0.9046 - F1: 0.9458 - Recall: 0.9429 - Precision: 0.9563
+	 Val. Loss: 0.6401 - Jaccard: 0.9074 - F1: 0.9484 - Recall: 0.9495 - Precision: 0.9550
+
+Epoch: 72 | Epoch Time: 1m 2s
+	Train Loss: 0.4652 - Jaccard: 0.9051 - F1: 0.9461 - Recall: 0.9426 - Precision: 0.9553
+	 Val. Loss: 0.6237 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9483 - Precision: 0.9559
+
+Epoch: 73 | Epoch Time: 1m 2s
+	Train Loss: 0.4638 - Jaccard: 0.9054 - F1: 0.9465 - Recall: 0.9437 - Precision: 0.9554
+	 Val. Loss: 0.6219 - Jaccard: 0.9072 - F1: 0.9483 - Recall: 0.9487 - Precision: 0.9556
+
+Epoch: 74 | Epoch Time: 1m 2s
+	Train Loss: 0.4617 - Jaccard: 0.9058 - F1: 0.9466 - Recall: 0.9434 - Precision: 0.9564
+	 Val. Loss: 0.6301 - Jaccard: 0.9070 - F1: 0.9482 - Recall: 0.9478 - Precision: 0.9563
+
+Epoch: 75 | Epoch Time: 1m 3s
+	Train Loss: 0.4568 - Jaccard: 0.9047 - F1: 0.9461 - Recall: 0.9423 - Precision: 0.9567
+	 Val. Loss: 0.6221 - Jaccard: 0.9072 - F1: 0.9483 - Recall: 0.9486 - Precision: 0.9557
+
+Epoch: 76 | Epoch Time: 0m 58s
+	Train Loss: 0.4612 - Jaccard: 0.9062 - F1: 0.9468 - Recall: 0.9439 - Precision: 0.9567
+	 Val. Loss: 0.6245 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9481 - Precision: 0.9561
+
+Epoch: 77 | Epoch Time: 1m 1s
+	Train Loss: 0.4578 - Jaccard: 0.9063 - F1: 0.9475 - Recall: 0.9449 - Precision: 0.9561
+	 Val. Loss: 0.6255 - Jaccard: 0.9075 - F1: 0.9484 - Recall: 0.9497 - Precision: 0.9549
+
+Epoch: 78 | Epoch Time: 0m 59s
+	Train Loss: 0.4745 - Jaccard: 0.9048 - F1: 0.9459 - Recall: 0.9439 - Precision: 0.9554
+	 Val. Loss: 0.6288 - Jaccard: 0.9072 - F1: 0.9483 - Recall: 0.9484 - Precision: 0.9559
+
+Epoch: 79 | Epoch Time: 1m 0s
+	Train Loss: 0.4598 - Jaccard: 0.9047 - F1: 0.9454 - Recall: 0.9427 - Precision: 0.9564
+	 Val. Loss: 0.6183 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9478 - Precision: 0.9564
+
+Epoch: 80 | Epoch Time: 1m 2s
+	Train Loss: 0.4615 - Jaccard: 0.9066 - F1: 0.9472 - Recall: 0.9441 - Precision: 0.9574
+	 Val. Loss: 0.6309 - Jaccard: 0.9073 - F1: 0.9484 - Recall: 0.9489 - Precision: 0.9555
+
+Epoch: 81 | Epoch Time: 1m 4s
+	Train Loss: 0.4625 - Jaccard: 0.9060 - F1: 0.9470 - Recall: 0.9442 - Precision: 0.9554
+	 Val. Loss: 0.6267 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9480 - Precision: 0.9562
+
+Epoch: 82 | Epoch Time: 1m 2s
+	Train Loss: 0.4562 - Jaccard: 0.9038 - F1: 0.9450 - Recall: 0.9424 - Precision: 0.9559
+	 Val. Loss: 0.6283 - Jaccard: 0.9074 - F1: 0.9484 - Recall: 0.9493 - Precision: 0.9552
+
+Epoch: 83 | Epoch Time: 1m 3s
+	Train Loss: 0.4676 - Jaccard: 0.9042 - F1: 0.9450 - Recall: 0.9419 - Precision: 0.9560
+	 Val. Loss: 0.6355 - Jaccard: 0.9071 - F1: 0.9483 - Recall: 0.9486 - Precision: 0.9556
+
+Epoch: 84 | Epoch Time: 1m 3s
+	Train Loss: 0.4618 - Jaccard: 0.9039 - F1: 0.9451 - Recall: 0.9426 - Precision: 0.9555
+	 Val. Loss: 0.6195 - Jaccard: 0.9071 - F1: 0.9482 - Recall: 0.9481 - Precision: 0.9560
+
+Epoch: 85 | Epoch Time: 1m 1s
+	Train Loss: 0.4715 - Jaccard: 0.9045 - F1: 0.9459 - Recall: 0.9420 - Precision: 0.9564
+	 Val. Loss: 0.6431 - Jaccard: 0.9074 - F1: 0.9485 - Recall: 0.9498 - Precision: 0.9548
+
+Epoch: 86 | Epoch Time: 1m 0s
+	Train Loss: 0.4723 - Jaccard: 0.9039 - F1: 0.9451 - Recall: 0.9412 - Precision: 0.9571
+	 Val. Loss: 0.6150 - Jaccard: 0.9069 - F1: 0.9481 - Recall: 0.9473 - Precision: 0.9567
+
+Early stopping: validation loss stops improving from last 50 continously.

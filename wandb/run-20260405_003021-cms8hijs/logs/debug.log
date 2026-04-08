@@ -1,0 +1,24 @@
+2026-04-05 00:30:21,985 INFO    MainThread:507429 [wandb_setup.py:_flush():81] Current SDK version is 0.24.2
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_setup.py:_flush():81] Configure stats pid to 507429
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_init.py:setup_run_log_directory():717] Logging user logs to /home/ubuntu/Desktop/licenta_elvis/FocusNet/wandb/run-20260405_003021-cms8hijs/logs/debug.log
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_init.py:setup_run_log_directory():718] Logging internal logs to /home/ubuntu/Desktop/licenta_elvis/FocusNet/wandb/run-20260405_003021-cms8hijs/logs/debug-internal.log
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_init.py:init():844] calling init triggers
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_init.py:init():849] wandb.init called with sweep_config: {}
+config: {'model': 'FocusNet', 'variant': 'DGFR+BandHead+MixStyle', 'setting': 'modality_wise', 'image_size': 256, 'batch_size': 16, 'epochs': 500, 'lr': 0.0001, 'early_stopping_patience': 50, 'train_path': 'data/PolypDB/PolypDB_modality_wise/WLI', '_wandb': {}}
+2026-04-05 00:30:21,986 INFO    MainThread:507429 [wandb_init.py:init():892] starting backend
+2026-04-05 00:30:22,246 INFO    MainThread:507429 [wandb_init.py:init():895] sending inform_init request
+2026-04-05 00:30:22,284 INFO    MainThread:507429 [wandb_init.py:init():903] backend started and connected
+2026-04-05 00:30:22,289 INFO    MainThread:507429 [wandb_init.py:init():973] updated telemetry
+2026-04-05 00:30:22,323 INFO    MainThread:507429 [wandb_init.py:init():997] communicating run to backend with 90.0 second timeout
+2026-04-05 00:30:23,039 INFO    MainThread:507429 [wandb_init.py:init():1042] starting run threads in backend
+2026-04-05 00:30:23,109 INFO    MainThread:507429 [wandb_run.py:_console_start():2529] atexit reg
+2026-04-05 00:30:23,110 INFO    MainThread:507429 [wandb_run.py:_redirect():2377] redirect: wrap_raw
+2026-04-05 00:30:23,110 INFO    MainThread:507429 [wandb_run.py:_redirect():2446] Wrapping output streams.
+2026-04-05 00:30:23,110 INFO    MainThread:507429 [wandb_run.py:_redirect():2469] Redirects installed.
+2026-04-05 00:30:23,114 INFO    MainThread:507429 [wandb_init.py:init():1082] run started, returning control to user process
+2026-04-05 02:24:00,934 INFO    MainThread:507429 [wandb_run.py:_finish():2295] finishing run elvis89b-facultatea-de-automatic-i-calculatoare/polyp-segmentation-focusnet/cms8hijs
+2026-04-05 02:24:00,934 INFO    MainThread:507429 [wandb_run.py:_atexit_cleanup():2494] got exitcode: 0
+2026-04-05 02:24:00,935 INFO    MainThread:507429 [wandb_run.py:_restore():2476] restore
+2026-04-05 02:24:00,935 INFO    MainThread:507429 [wandb_run.py:_restore():2482] restore done
+2026-04-05 02:24:02,245 INFO    MainThread:507429 [wandb_run.py:_footer_sync_info():3871] logging synced files

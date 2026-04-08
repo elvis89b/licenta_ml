@@ -1,0 +1,5 @@
+# model weights
+*.pth
+
+# optional
+pretrained_pth/

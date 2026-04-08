@@ -1,0 +1,40 @@
+{
+  "os": "Linux-5.15.0-76-generic-x86_64-with-glibc2.17",
+  "python": "CPython 3.8.16",
+  "startedAt": "2026-04-05T06:57:01.966084Z",
+  "program": "train_center_wise.py",
+  "codePath": "train_center_wise.py",
+  "codePathLocal": "train_center_wise.py",
+  "git": {
+    "remote": "https://github.com/JunZengz/FocusNet.git",
+    "commit": "ca0220ee40976080306ed58641d982e181441c2a"
+  },
+  "email": "elvis89b@gmail.com",
+  "root": "/home/ubuntu/Desktop/licenta_elvis/FocusNet",
+  "host": "ubuntu",
+  "executable": "/home/ubuntu/anaconda3/envs/FocusNet/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "gpu": "NVIDIA GeForce RTX 4070 Ti",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "526765031424",
+      "used": "38345572352"
+    }
+  },
+  "memory": {
+    "total": "25188802560"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4070 Ti",
+      "memoryTotal": "12878610432",
+      "cudaCores": 7680,
+      "architecture": "Ada",
+      "uuid": "GPU-1c3680dd-ced7-d545-5b77-9e377e8378d2"
+    }
+  ],
+  "cudaVersion": "12.2",
+  "writerId": "z6o9r2dlcf7smuucna5aubxnzuicbdre"
+}

@@ -1,5 +1,27 @@
+# virtual env
+.venv/
+venv/
+env/
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # model weights
 *.pth
+*.pt
+*.ckpt
 
-# optional
+# pretrained weights
 pretrained_pth/
+
+# outputs / generated files
+files/
+results/
+wandb/
+
+# jupyter / misc
+.ipynb_checkpoints/
+.DS_Store

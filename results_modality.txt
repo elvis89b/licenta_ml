@@ -1,0 +1,691 @@
+FocusNet – Modality-wise Comparison (Full Metrics)
+
+BLI
+
+Paper
+mIoU/Jaccard: 0.7460
+mDSC/F1: 0.8247
+Recall: 0.8472
+Precision: 0.8404
+Accuracy: 0.9887
+F2: 0.8344
+
+DGFR
+mIoU/Jaccard: 0.7448
+mDSC/F1: 0.8245
+Recall: 0.8394
+Precision: 0.8672
+Accuracy: 0.9898
+F2: 0.8265
+
+DGFR + Band Head
+mIoU/Jaccard: 0.7224
+mDSC/F1: 0.8078
+Recall: 0.8348
+Precision: 0.8468
+Accuracy: 0.9864
+F2: 0.8180
+
+DGFR + Band Head + MixStyle
+mIoU/Jaccard: 0.7295
+mDSC/F1: 0.8059
+Recall: 0.8152
+Precision: 0.8681
+Accuracy: 0.9841
+F2: 0.8012
+
+DGFR + Band Head + GIN
+mIoU/Jaccard: 0.7303
+mDSC/F1: 0.8129
+Recall: 0.8309
+Precision: 0.8462
+Accuracy: 0.9887
+F2: 0.8186
+
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.7408
+mDSC/F1: 0.8225
+Recall: 0.8503
+Precision: 0.8471
+Accuracy: 0.9897
+F2: 0.8316
+
+Δ DGFR vs Paper
+mIoU/Jaccard: -0.0012
+mDSC/F1: -0.0002
+Recall: -0.0078
+Precision: +0.0268
+Accuracy: +0.0011
+F2: -0.0079
+
+Δ DGFR + Band Head vs Paper
+mIoU/Jaccard: -0.0236
+mDSC/F1: -0.0169
+Recall: -0.0124
+Precision: +0.0064
+Accuracy: -0.0023
+F2: -0.0164
+
+Δ DGFR + Band Head + MixStyle vs Paper
+mIoU/Jaccard: -0.0165
+mDSC/F1: -0.0188
+Recall: -0.0320
+Precision: +0.0277
+Accuracy: -0.0046
+F2: -0.0332
+
+Δ DGFR + Band Head + MixStyle vs DGFR
+mIoU/Jaccard: -0.0153
+mDSC/F1: -0.0186
+Recall: -0.0242
+Precision: +0.0009
+Accuracy: -0.0057
+F2: -0.0253
+
+Δ DGFR + Band Head + MixStyle vs DGFR + Band Head
+mIoU/Jaccard: +0.0071
+mDSC/F1: -0.0019
+Recall: -0.0196
+Precision: +0.0213
+Accuracy: -0.0023
+F2: -0.0168
+
+Δ DGFR + Band Head + GIN vs Paper
+mIoU/Jaccard: -0.0157
+mDSC/F1: -0.0118
+Recall: -0.0163
+Precision: +0.0058
+Accuracy: +0.0000
+F2: -0.0158
+
+Δ DGFR + Band Head + GIN vs DGFR
+mIoU/Jaccard: -0.0145
+mDSC/F1: -0.0116
+Recall: -0.0085
+Precision: -0.0210
+Accuracy: -0.0011
+F2: -0.0079
+
+Δ DGFR + Band Head + GIN vs DGFR + Band Head
+mIoU/Jaccard: +0.0079
+mDSC/F1: +0.0051
+Recall: -0.0039
+Precision: -0.0006
+Accuracy: +0.0023
+F2: +0.0006
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: -0.0052
+mDSC/F1: -0.0022
+Recall: +0.0031
+Precision: +0.0067
+Accuracy: +0.0010
+F2: -0.0028
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR
+mIoU/Jaccard: -0.0040
+mDSC/F1: -0.0020
+Recall: +0.0109
+Precision: -0.0201
+Accuracy: -0.0001
+F2: +0.0051
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: +0.0184
+mDSC/F1: +0.0147
+Recall: +0.0155
+Precision: +0.0003
+Accuracy: +0.0033
+F2: +0.0136
+
+FICE
+
+Paper
+mIoU/Jaccard: 0.8253
+mDSC/F1: 0.8846
+Recall: 0.8802
+Precision: 0.9085
+Accuracy: 0.9914
+F2: 0.8806
+
+DGFR
+mIoU/Jaccard: 0.8097
+mDSC/F1: 0.8757
+Recall: 0.8699
+Precision: 0.9134
+Accuracy: 0.9895
+F2: 0.8703
+
+DGFR + Band Head
+mIoU/Jaccard: 0.8081
+mDSC/F1: 0.8648
+Recall: 0.8659
+Precision: 0.8893
+Accuracy: 0.9876
+F2: 0.8642
+
+DGFR + Band Head + MixStyle
+mIoU/Jaccard: 0.7924
+mDSC/F1: 0.8575
+Recall: 0.8479
+Precision: 0.9169
+Accuracy: 0.9905
+F2: 0.8495
+
+DGFR + Band Head + GIN
+mIoU/Jaccard: 0.8109
+mDSC/F1: 0.8709
+Recall: 0.8817
+Precision: 0.8837
+Accuracy: 0.9893
+F2: 0.8748
+
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.8141
+mDSC/F1: 0.8751
+Recall: 0.8779
+Precision: 0.9096
+Accuracy: 0.9912
+F2: 0.8749
+
+Δ DGFR vs Paper
+mIoU/Jaccard: -0.0156
+mDSC/F1: -0.0089
+Recall: -0.0103
+Precision: +0.0049
+Accuracy: -0.0019
+F2: -0.0103
+
+Δ DGFR + Band Head vs Paper
+mIoU/Jaccard: -0.0172
+mDSC/F1: -0.0198
+Recall: -0.0143
+Precision: -0.0192
+Accuracy: -0.0038
+F2: -0.0164
+
+Δ DGFR + Band Head + MixStyle vs Paper
+mIoU/Jaccard: -0.0329
+mDSC/F1: -0.0271
+Recall: -0.0323
+Precision: +0.0084
+Accuracy: -0.0009
+F2: -0.0311
+
+Δ DGFR + Band Head + MixStyle vs DGFR
+mIoU/Jaccard: -0.0173
+mDSC/F1: -0.0182
+Recall: -0.0220
+Precision: +0.0035
+Accuracy: +0.0010
+F2: -0.0208
+
+Δ DGFR + Band Head + MixStyle vs DGFR + Band Head
+mIoU/Jaccard: -0.0157
+mDSC/F1: -0.0073
+Recall: -0.0180
+Precision: +0.0276
+Accuracy: +0.0029
+F2: -0.0147
+
+Δ DGFR + Band Head + GIN vs Paper
+mIoU/Jaccard: -0.0144
+mDSC/F1: -0.0137
+Recall: +0.0015
+Precision: -0.0248
+Accuracy: -0.0021
+F2: -0.0058
+
+Δ DGFR + Band Head + GIN vs DGFR
+mIoU/Jaccard: +0.0012
+mDSC/F1: -0.0048
+Recall: +0.0118
+Precision: -0.0297
+Accuracy: -0.0002
+F2: +0.0045
+
+Δ DGFR + Band Head + GIN vs DGFR + Band Head
+mIoU/Jaccard: +0.0028
+mDSC/F1: +0.0061
+Recall: +0.0158
+Precision: -0.0056
+Accuracy: +0.0017
+F2: +0.0106
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: -0.0112
+mDSC/F1: -0.0095
+Recall: -0.0023
+Precision: +0.0011
+Accuracy: -0.0002
+F2: -0.0057
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR
+mIoU/Jaccard: +0.0044
+mDSC/F1: -0.0006
+Recall: +0.0080
+Precision: -0.0038
+Accuracy: +0.0017
+F2: +0.0046
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: +0.0060
+mDSC/F1: +0.0103
+Recall: +0.0120
+Precision: +0.0203
+Accuracy: +0.0036
+F2: +0.0107
+
+LCI
+
+Paper
+mIoU/Jaccard: 0.8613
+mDSC/F1: 0.9204
+Recall: 0.9378
+Precision: 0.9182
+Accuracy: 0.9941
+F2: 0.9292
+
+DGFR
+mIoU/Jaccard: 0.8568
+mDSC/F1: 0.9171
+Recall: 0.9271
+Precision: 0.9243
+Accuracy: 0.9944
+F2: 0.9214
+
+DGFR + Band Head
+mIoU/Jaccard: 0.8513
+mDSC/F1: 0.9119
+Recall: 0.9177
+Precision: 0.9288
+Accuracy: 0.9947
+F2: 0.9135
+
+DGFR + Band Head + MixStyle
+mIoU/Jaccard: 0.8493
+mDSC/F1: 0.9122
+Recall: 0.9320
+Precision: 0.9102
+Accuracy: 0.9930
+F2: 0.9218
+
+DGFR + Band Head + GIN
+mIoU/Jaccard: 0.8570
+mDSC/F1: 0.9173
+Recall: 0.9245
+Precision: 0.9262
+Accuracy: 0.9949
+F2: 0.9202
+
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.8578
+mDSC/F1: 0.9180
+Recall: 0.9315
+Precision: 0.9214
+Accuracy: 0.9943
+F2: 0.9243
+
+Δ DGFR vs Paper
+mIoU/Jaccard: -0.0045
+mDSC/F1: -0.0033
+Recall: -0.0107
+Precision: +0.0061
+Accuracy: +0.0003
+F2: -0.0078
+
+Δ DGFR + Band Head vs Paper
+mIoU/Jaccard: -0.0100
+mDSC/F1: -0.0085
+Recall: -0.0201
+Precision: +0.0106
+Accuracy: +0.0006
+F2: -0.0157
+
+Δ DGFR + Band Head + MixStyle vs Paper
+mIoU/Jaccard: -0.0120
+mDSC/F1: -0.0082
+Recall: -0.0058
+Precision: -0.0080
+Accuracy: -0.0011
+F2: -0.0074
+
+Δ DGFR + Band Head + MixStyle vs DGFR
+mIoU/Jaccard: -0.0075
+mDSC/F1: -0.0049
+Recall: +0.0049
+Precision: -0.0141
+Accuracy: -0.0014
+F2: +0.0004
+
+Δ DGFR + Band Head + MixStyle vs DGFR + Band Head
+mIoU/Jaccard: -0.0020
+mDSC/F1: +0.0003
+Recall: +0.0143
+Precision: -0.0186
+Accuracy: -0.0017
+F2: +0.0083
+
+Δ DGFR + Band Head + GIN vs Paper
+mIoU/Jaccard: -0.0043
+mDSC/F1: -0.0031
+Recall: -0.0133
+Precision: +0.0080
+Accuracy: +0.0008
+F2: -0.0090
+
+Δ DGFR + Band Head + GIN vs DGFR
+mIoU/Jaccard: +0.0002
+mDSC/F1: +0.0002
+Recall: -0.0026
+Precision: +0.0019
+Accuracy: +0.0005
+F2: -0.0012
+
+Δ DGFR + Band Head + GIN vs DGFR + Band Head
+mIoU/Jaccard: +0.0057
+mDSC/F1: +0.0054
+Recall: +0.0068
+Precision: -0.0026
+Accuracy: +0.0002
+F2: +0.0067
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: -0.0035
+mDSC/F1: -0.0024
+Recall: -0.0063
+Precision: +0.0032
+Accuracy: +0.0002
+F2: -0.0049
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR
+mIoU/Jaccard: +0.0010
+mDSC/F1: +0.0009
+Recall: +0.0044
+Precision: -0.0029
+Accuracy: -0.0001
+F2: +0.0029
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: +0.0065
+mDSC/F1: +0.0061
+Recall: +0.0138
+Precision: -0.0074
+Accuracy: -0.0004
+F2: +0.0108
+
+NBI
+
+Paper
+mIoU/Jaccard: 0.7467
+mDSC/F1: 0.8209
+Recall: 0.8315
+Precision: 0.8586
+Accuracy: 0.9747
+F2: 0.8241
+
+DGFR
+mIoU/Jaccard: 0.7365
+mDSC/F1: 0.8143
+Recall: 0.8139
+Precision: 0.8625
+Accuracy: 0.9712
+F2: 0.8074
+
+DGFR + Band Head
+mIoU/Jaccard: 0.7392
+mDSC/F1: 0.8100
+Recall: 0.8338
+Precision: 0.8363
+Accuracy: 0.9706
+F2: 0.8175
+
+DGFR + Band Head + MixStyle
+mIoU/Jaccard: 0.7363
+mDSC/F1: 0.8108
+Recall: 0.8347
+Precision: 0.8490
+Accuracy: 0.9706
+F2: 0.8172
+
+DGFR + Band Head + GIN
+mIoU/Jaccard: 0.7280
+mDSC/F1: 0.8079
+Recall: 0.8259
+Precision: 0.8510
+Accuracy: 0.9684
+F2: 0.8112
+
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.7164
+mDSC/F1: 0.7955
+Recall: 0.8263
+Precision: 0.8283
+Accuracy: 0.9663
+F2: 0.8042
+
+Δ DGFR vs Paper
+mIoU/Jaccard: -0.0102
+mDSC/F1: -0.0066
+Recall: -0.0176
+Precision: +0.0039
+Accuracy: -0.0035
+F2: -0.0167
+
+Δ DGFR + Band Head vs Paper
+mIoU/Jaccard: -0.0075
+mDSC/F1: -0.0109
+Recall: +0.0023
+Precision: -0.0223
+Accuracy: -0.0041
+F2: -0.0066
+
+Δ DGFR + Band Head + MixStyle vs Paper
+mIoU/Jaccard: -0.0104
+mDSC/F1: -0.0101
+Recall: +0.0032
+Precision: -0.0096
+Accuracy: -0.0041
+F2: -0.0069
+
+Δ DGFR + Band Head + MixStyle vs DGFR
+mIoU/Jaccard: -0.0002
+mDSC/F1: -0.0035
+Recall: +0.0208
+Precision: -0.0135
+Accuracy: -0.0006
+F2: +0.0098
+
+Δ DGFR + Band Head + MixStyle vs DGFR + Band Head
+mIoU/Jaccard: -0.0029
+mDSC/F1: +0.0008
+Recall: +0.0009
+Precision: +0.0127
+Accuracy: +0.0000
+F2: -0.0003
+
+Δ DGFR + Band Head + GIN vs Paper
+mIoU/Jaccard: -0.0187
+mDSC/F1: -0.0130
+Recall: -0.0056
+Precision: -0.0076
+Accuracy: -0.0063
+F2: -0.0129
+
+Δ DGFR + Band Head + GIN vs DGFR
+mIoU/Jaccard: -0.0085
+mDSC/F1: -0.0064
+Recall: +0.0120
+Precision: -0.0115
+Accuracy: -0.0028
+F2: +0.0038
+
+Δ DGFR + Band Head + GIN vs DGFR + Band Head
+mIoU/Jaccard: -0.0112
+mDSC/F1: -0.0021
+Recall: -0.0079
+Precision: +0.0147
+Accuracy: -0.0022
+F2: -0.0063
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: -0.0303
+mDSC/F1: -0.0254
+Recall: -0.0052
+Precision: -0.0303
+Accuracy: -0.0084
+F2: -0.0199
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR
+mIoU/Jaccard: -0.0201
+mDSC/F1: -0.0188
+Recall: +0.0124
+Precision: -0.0342
+Accuracy: -0.0049
+F2: -0.0032
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: -0.0228
+mDSC/F1: -0.0145
+Recall: -0.0075
+Precision: -0.0080
+Accuracy: -0.0043
+F2: -0.0133
+
+WLI
+
+Paper
+mIoU/Jaccard: 0.8862
+mDSC/F1: 0.9342
+Recall: 0.9318
+Precision: 0.9477
+Accuracy: 0.9858
+F2: 0.9314
+
+DGFR
+mIoU/Jaccard: 0.8758
+mDSC/F1: 0.9247
+Recall: 0.9251
+Precision: 0.9395
+Accuracy: 0.9837
+F2: 0.9229
+
+DGFR + Band Head
+mIoU/Jaccard: 0.8823
+mDSC/F1: 0.9323
+Recall: 0.9332
+Precision: 0.9435
+Accuracy: 0.9851
+F2: 0.9312
+
+DGFR + Band Head + MixStyle
+mIoU/Jaccard: 0.8844
+mDSC/F1: 0.9330
+Recall: 0.9324
+Precision: 0.9470
+Accuracy: 0.9868
+F2: 0.9312
+
+DGFR + Band Head + GIN
+mIoU/Jaccard: 0.8854
+mDSC/F1: 0.9340
+Recall: 0.9340
+Precision: 0.9441
+Accuracy: 0.9858
+F2: 0.9324
+
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.8822
+mDSC/F1: 0.9317
+Recall: 0.9282
+Precision: 0.9478
+Accuracy: 0.9834
+F2: 0.9280
+
+Δ DGFR vs Paper
+mIoU/Jaccard: -0.0104
+mDSC/F1: -0.0095
+Recall: -0.0067
+Precision: -0.0082
+Accuracy: -0.0021
+F2: -0.0085
+
+Δ DGFR + Band Head vs Paper
+mIoU/Jaccard: -0.0039
+mDSC/F1: -0.0019
+Recall: +0.0014
+Precision: -0.0042
+Accuracy: -0.0007
+F2: -0.0002
+
+Δ DGFR + Band Head + MixStyle vs Paper
+mIoU/Jaccard: -0.0018
+mDSC/F1: -0.0012
+Recall: +0.0006
+Precision: -0.0007
+Accuracy: +0.0010
+F2: -0.0002
+
+Δ DGFR + Band Head + GIN vs Paper
+mIoU/Jaccard: -0.0008
+mDSC/F1: -0.0002
+Recall: +0.0022
+Precision: -0.0036
+Accuracy: +0.0000
+F2: +0.0010
+
+Δ DGFR + Band Head + MixStyle vs DGFR
+mIoU/Jaccard: +0.0086
+mDSC/F1: +0.0083
+Recall: +0.0073
+Precision: +0.0075
+Accuracy: +0.0031
+F2: +0.0083
+
+Δ DGFR + Band Head + MixStyle vs DGFR + Band Head
+mIoU/Jaccard: +0.0021
+mDSC/F1: +0.0007
+Recall: -0.0008
+Precision: +0.0035
+Accuracy: +0.0017
+F2: +0.0000
+
+Δ DGFR + Band Head + GIN vs DGFR
+mIoU/Jaccard: +0.0096
+mDSC/F1: +0.0093
+Recall: +0.0089
+Precision: +0.0046
+Accuracy: +0.0021
+F2: +0.0095
+
+Δ DGFR + Band Head + GIN vs DGFR + Band Head
+mIoU/Jaccard: +0.0031
+mDSC/F1: +0.0017
+Recall: +0.0008
+Precision: +0.0006
+Accuracy: +0.0007
+F2: +0.0012
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: -0.0040
+mDSC/F1: -0.0025
+Recall: -0.0036
+Precision: +0.0001
+Accuracy: -0.0024
+F2: -0.0034
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR
+mIoU/Jaccard: +0.0064
+mDSC/F1: +0.0070
+Recall: +0.0031
+Precision: +0.0083
+Accuracy: -0.0003
+F2: +0.0051
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: -0.0001
+mDSC/F1: -0.0006
+Recall: -0.0050
+Precision: +0.0043
+Accuracy: -0.0017
+F2: -0.0032

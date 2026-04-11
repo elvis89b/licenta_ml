@@ -1,0 +1,28 @@
+{
+  "os": "Linux-5.15.0-139-generic-x86_64-with-glibc2.17",
+  "python": "CPython 3.8.16",
+  "startedAt": "2026-04-10T08:17:21.413600Z",
+  "program": "train_center_wise.py",
+  "codePath": "train_center_wise.py",
+  "codePathLocal": "train_center_wise.py",
+  "git": {
+    "remote": "https://github.com/elvis89b/licenta_ml.git",
+    "commit": "564fd380916b4c2e121bbaa6a4f2a124f7a585da"
+  },
+  "email": "elvis89b@gmail.com",
+  "root": "/home/ubuntu/Desktop/licenta_elvis/repo_github",
+  "host": "ubuntu",
+  "executable": "/home/ubuntu/anaconda3/envs/FocusNet/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "526765031424",
+      "used": "52467372032"
+    }
+  },
+  "memory": {
+    "total": "25188741120"
+  },
+  "writerId": "1niopd1la9vvxzzykwm62mrb73ngziij"
+}

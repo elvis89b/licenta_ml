@@ -1,0 +1,8 @@
+{"time":"2026-04-10T00:09:16.778322641+03:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2026-04-10T00:09:16.778343491+03:00","level":"INFO","msg":"created symlink","path":"/home/ubuntu/Desktop/licenta_elvis/repo_github/wandb/run-20260410_000916-ywefz5og/logs/debug-core.log"}
+{"time":"2026-04-10T00:09:16.881962401+03:00","level":"INFO","msg":"created new stream","id":"ywefz5og"}
+{"time":"2026-04-10T00:09:16.882010661+03:00","level":"INFO","msg":"stream: started","id":"ywefz5og"}
+{"time":"2026-04-10T00:09:16.882081452+03:00","level":"INFO","msg":"writer: Do: started","stream_id":"ywefz5og"}
+{"time":"2026-04-10T00:09:16.882096412+03:00","level":"INFO","msg":"handler: started","stream_id":"ywefz5og"}
+{"time":"2026-04-10T00:09:16.882169752+03:00","level":"INFO","msg":"sender: started","stream_id":"ywefz5og"}
+{"time":"2026-04-10T00:09:17.392472902+03:00","level":"INFO","msg":"Starting system monitor"}

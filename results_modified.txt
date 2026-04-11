@@ -50,6 +50,14 @@ Precision: 0.9344
 Accuracy: 0.9802
 F2: 0.9136
 
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.8734
+mDSC/F1: 0.9261
+Recall: 0.9257
+Precision: 0.9416
+Accuracy: 0.9821
+F2: 0.9242
+
 Δ DGFR vs Paper
 mIoU/Jaccard: +0.0010
 mDSC/F1: +0.0023
@@ -106,6 +114,22 @@ Precision: -0.0034
 Accuracy: -0.0022
 F2: -0.0123
 
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: +0.0022
+mDSC/F1: +0.0031
+Recall: +0.0018
+Precision: +0.0010
+Accuracy: +0.0013
+F2: +0.0026
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: -0.0006
+mDSC/F1: +0.0003
+Recall: -0.0046
+Precision: +0.0038
+Accuracy: -0.0003
+F2: -0.0017
+
 BKAI
 
 Paper
@@ -155,6 +179,14 @@ Recall: 0.9309
 Precision: 0.9124
 Accuracy: 0.9918
 F2: 0.9191
+
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.8629
+mDSC/F1: 0.9146
+Recall: 0.9312
+Precision: 0.9173
+Accuracy: 0.9919
+F2: 0.9209
 
 Δ DGFR vs Paper
 mIoU/Jaccard: +0.0007
@@ -211,6 +243,22 @@ Recall: +0.0031
 Precision: -0.0042
 Accuracy: -0.0005
 F2: -0.0003
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: +0.0015
+mDSC/F1: +0.0019
+Recall: -0.0002
+Precision: +0.0036
+Accuracy: -0.0002
+F2: +0.0008
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: +0.0009
+mDSC/F1: +0.0010
+Recall: +0.0034
+Precision: +0.0007
+Accuracy: -0.0004
+F2: +0.0015
 
 Karolinska
 
@@ -270,6 +318,14 @@ Precision: 0.9453
 Accuracy: 0.9895
 F2: 0.9432
 
+DGFR + Band Head + FreqAmpMix + Final Focal Tversky
+mIoU/Jaccard: 0.9061
+mDSC/F1: 0.9483
+Recall: 0.9366
+Precision: 0.9667
+Accuracy: 0.9906
+F2: 0.9407
+
 Δ DGFR vs Paper
 mIoU/Jaccard: +0.0042
 mDSC/F1: +0.0040
@@ -325,6 +381,22 @@ Recall: -0.0065
 Precision: -0.0117
 Accuracy: -0.0035
 F2: -0.0086
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
+mIoU/Jaccard: +0.0020
+mDSC/F1: +0.0019
+Recall: -0.0045
+Precision: +0.0066
+Accuracy: +0.0007
+F2: -0.0018
+
+Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
+mIoU/Jaccard: -0.0056
+mDSC/F1: -0.0043
+Recall: -0.0155
+Precision: +0.0097
+Accuracy: -0.0024
+F2: -0.0111
 
 FocusNet – Modality-wise Comparison (Full Metrics)
 

@@ -1,0 +1,85 @@
+_wandb:
+    value:
+        cli_version: 0.24.2
+        e:
+            wmbhvwhqq5s2ansafec79ycm7xp9qcyi:
+                codePath: train_center_wise.py
+                codePathLocal: train_center_wise.py
+                cpu_count: 8
+                cpu_count_logical: 8
+                cudaVersion: "12.2"
+                disk:
+                    /:
+                        total: "526765031424"
+                        used: "43352346624"
+                email: elvis89b@gmail.com
+                executable: /home/ubuntu/anaconda3/envs/FocusNet/bin/python
+                git:
+                    commit: 564fd380916b4c2e121bbaa6a4f2a124f7a585da
+                    remote: https://github.com/elvis89b/licenta_ml.git
+                gpu: NVIDIA GeForce RTX 4070 Ti
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ada
+                      cudaCores: 7680
+                      memoryTotal: "12878610432"
+                      name: NVIDIA GeForce RTX 4070 Ti
+                      uuid: GPU-1c3680dd-ced7-d545-5b77-9e377e8378d2
+                host: ubuntu
+                memory:
+                    total: "25188802560"
+                os: Linux-5.15.0-76-generic-x86_64-with-glibc2.17
+                program: train_center_wise.py
+                python: CPython 3.8.16
+                root: /home/ubuntu/Desktop/licenta_elvis/repo_github
+                startedAt: "2026-04-08T18:35:21.695410Z"
+                writerId: wmbhvwhqq5s2ansafec79ycm7xp9qcyi
+        m: []
+        python_version: 3.8.16
+        t:
+            "1":
+                - 1
+                - 5
+                - 41
+                - 49
+                - 53
+                - 63
+                - 80
+            "2":
+                - 1
+                - 5
+                - 41
+                - 49
+                - 53
+                - 63
+                - 80
+            "3":
+                - 2
+                - 13
+                - 16
+            "4": 3.8.16
+            "5": 0.24.2
+            "12": 0.24.2
+            "13": linux-x86_64
+batch_size:
+    value: 16
+early_stopping_patience:
+    value: 50
+epochs:
+    value: 500
+gin_p:
+    value: 0
+image_size:
+    value: 256
+lr:
+    value: 0.0001
+model:
+    value: FocusNet
+setting:
+    value: center_wise
+train_path:
+    value: data/PolypDB/PolypDB_center_wise/Simula/WLI
+use_gin:
+    value: false
+variant:
+    value: DGFR+BandHead+FreqAmpMix+FocalTverskyFinal

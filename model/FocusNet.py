@@ -20,6 +20,25 @@ def DiceBCELoss(inputs, targets, smooth=1):
     return Dice_BCE
 
 
+def FocalTverskyLoss(inputs, targets, alpha=0.3, beta=0.7, gamma=0.75, smooth=1.0):
+    """
+    alpha -> penalizes FP
+    beta  -> penalizes FN
+    beta > alpha emphasizes recall / hard missed regions
+    """
+    inputs = torch.sigmoid(inputs)
+
+    inputs = inputs.view(-1)
+    targets = targets.view(-1)
+
+    tp = (inputs * targets).sum()
+    fp = ((1 - targets) * inputs).sum()
+    fn = (targets * (1 - inputs)).sum()
+
+    tversky = (tp + smooth) / (tp + alpha * fp + beta * fn + smooth)
+    return (1 - tversky) ** gamma
+
+
 class _ASPPModuleDeformable(nn.Module):
     def __init__(self, in_channels, planes, kernel_size, padding):
         super(_ASPPModuleDeformable, self).__init__()
@@ -120,7 +139,8 @@ class CIDM_M(nn.Module):
     def forward(self, x1, x2, x3):
         xh = x1
         xm = self.conv_upsample1(self.upsample(x1)) * x2
-        xl = self.conv_upsample2(self.upsample(self.upsample(x1))) * self.conv_upsample3(self.upsample(x2)) * x3
+        xl = self.conv_upsample2(self.upsample(self.upsample(x1))) \
+             * self.conv_upsample3(self.upsample(x2)) * x3
 
         xm = self.up03(xm)
         xh = self.up04(xh)
@@ -164,7 +184,8 @@ class CIDM_A(nn.Module):
     def forward(self, x1, x2, x3):
         xh = x1
         xm = self.conv_upsample1(self.upsample(x1)) + x2
-        xl = self.conv_upsample2(self.upsample(self.upsample(x1))) + self.conv_upsample3(self.upsample(x2)) + x3
+        xl = self.conv_upsample2(self.upsample(self.upsample(x1))) \
+             + self.conv_upsample3(self.upsample(x2)) + x3
 
         xm = self.up03(xm)
         xh = self.up04(xh)
@@ -206,9 +227,12 @@ class FocusNet(nn.Module):
         self.attention = FocusAttention(channel, channel)
 
         self.res = lambda x, size: F.interpolate(x, size=size, mode='bilinear', align_corners=False)
+
         self.loss_fn = DiceBCELoss
+        self.final_tversky_fn = FocalTverskyLoss
 
         self.final_loss_weight = 0.5
+        self.final_tversky_weight = 0.35
         self.consistency_weight = 0.15
 
         self.band_head = nn.Sequential(
@@ -277,7 +301,9 @@ class FocusNet(nn.Module):
         loss2 = self.loss_fn(out2, y)
         loss3 = self.loss_fn(out3, y)
         loss4 = self.loss_fn(out4, y)
-        loss_final = self.loss_fn(out, y)
+
+        loss_final_dice_bce = self.loss_fn(out, y)
+        loss_final_tversky = self.final_tversky_fn(out, y)
 
         uncertainty_full = self.res(coarse_uncertainty, base_size)
         loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
@@ -287,7 +313,8 @@ class FocusNet(nn.Module):
 
         loss = (
             loss1 + loss2 + loss3 + loss4
-            + self.final_loss_weight * loss_final
+            + self.final_loss_weight * loss_final_dice_bce
+            + self.final_tversky_weight * loss_final_tversky
             + self.consistency_weight * loss_consistency
             + self.band_loss_weight * loss_band
         )

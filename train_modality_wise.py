@@ -342,7 +342,7 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_GIN_modality"
+    experiment_name = "FocusNet_DGFR_BandHead_FreqAmpMix_FocalTverskyFinal_modality"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -365,15 +365,15 @@ if __name__ == "__main__":
     checkpoint_path = f"files/modality_wise/{model_name}/checkpoint.pth"
     path = "data/PolypDB/PolypDB_modality_wise/WLI"
 
-    use_gin = True
-    gin_p = 0.5
+    use_gin = False
+    gin_p = 0.0
 
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+GIN",
+            "variant": "DGFR+BandHead+FreqAmpMix+FocalTverskyFinal",
             "setting": "modality_wise",
             "image_size": image_size,
             "batch_size": batch_size,

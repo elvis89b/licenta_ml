@@ -58,6 +58,14 @@ Precision: 0.9416
 Accuracy: 0.9821
 F2: 0.9242
 
+DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior
+mIoU/Jaccard: 0.8788
+mDSC/F1: 0.9308
+Recall: 0.9266
+Precision: 0.9460
+Accuracy: 0.9855
+F2: 0.9269
+
 Δ DGFR vs Paper
 mIoU/Jaccard: +0.0010
 mDSC/F1: +0.0023
@@ -130,6 +138,22 @@ Precision: +0.0038
 Accuracy: -0.0003
 F2: -0.0017
 
+Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs Paper
+mIoU/Jaccard: +0.0076
+mDSC/F1: +0.0078
+Recall: +0.0027
+Precision: +0.0054
+Accuracy: +0.0047
+F2: +0.0053
+
+Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs DGFR + Band Head
+mIoU/Jaccard: +0.0048
+mDSC/F1: +0.0050
+Recall: -0.0037
+Precision: +0.0082
+Accuracy: +0.0031
+F2: +0.0010
+
 BKAI
 
 Paper
@@ -187,6 +211,14 @@ Recall: 0.9312
 Precision: 0.9173
 Accuracy: 0.9919
 F2: 0.9209
+
+DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior
+mIoU/Jaccard: 0.8568
+mDSC/F1: 0.9101
+Recall: 0.9280
+Precision: 0.9127
+Accuracy: 0.9919
+F2: 0.9172
 
 Δ DGFR vs Paper
 mIoU/Jaccard: +0.0007
@@ -260,6 +292,22 @@ Precision: +0.0007
 Accuracy: -0.0004
 F2: +0.0015
 
+Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs Paper
+mIoU/Jaccard: -0.0046
+mDSC/F1: -0.0026
+Recall: -0.0034
+Precision: -0.0010
+Accuracy: -0.0002
+F2: -0.0029
+
+Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs DGFR + Band Head
+mIoU/Jaccard: -0.0052
+mDSC/F1: -0.0035
+Recall: +0.0002
+Precision: -0.0039
+Accuracy: -0.0004
+F2: -0.0022
+
 Karolinska
 
 Paper
@@ -325,6 +373,14 @@ Recall: 0.9366
 Precision: 0.9667
 Accuracy: 0.9906
 F2: 0.9407
+
+DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior
+mIoU/Jaccard: 0.9074
+mDSC/F1: 0.9503
+Recall: 0.9463
+Precision: 0.9585
+Accuracy: 0.9914
+F2: 0.9474
 
 Δ DGFR vs Paper
 mIoU/Jaccard: +0.0042
@@ -397,3 +453,19 @@ Recall: -0.0155
 Precision: +0.0097
 Accuracy: -0.0024
 F2: -0.0111
+
+Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs Paper
+mIoU/Jaccard: +0.0033
+mDSC/F1: +0.0039
+Recall: +0.0052
+Precision: -0.0016
+Accuracy: +0.0015
+F2: +0.0049
+
+Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs DGFR + Band Head
+mIoU/Jaccard: -0.0043
+mDSC/F1: -0.0023
+Recall: -0.0058
+Precision: +0.0015
+Accuracy: -0.0016
+F2: -0.0044

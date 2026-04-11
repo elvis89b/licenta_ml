@@ -20,12 +20,7 @@ def DiceBCELoss(inputs, targets, smooth=1):
     return Dice_BCE
 
 
-def FocalTverskyLoss(inputs, targets, alpha=0.3, beta=0.7, gamma=0.75, smooth=1.0):
-    """
-    alpha -> penalizes FP
-    beta  -> penalizes FN
-    beta > alpha emphasizes recall / hard missed regions
-    """
+def FocalTverskyLoss(inputs, targets, alpha=0.7, beta=0.3, gamma=0.75, smooth=1):
     inputs = torch.sigmoid(inputs)
 
     inputs = inputs.view(-1)
@@ -36,7 +31,47 @@ def FocalTverskyLoss(inputs, targets, alpha=0.3, beta=0.7, gamma=0.75, smooth=1.
     fn = (targets * (1 - inputs)).sum()
 
     tversky = (tp + smooth) / (tp + alpha * fp + beta * fn + smooth)
-    return (1 - tversky) ** gamma
+    loss = torch.pow((1 - tversky), gamma)
+    return loss
+
+
+class HaarEdgePrior(nn.Module):
+    def __init__(self, out_channels):
+        super(HaarEdgePrior, self).__init__()
+
+        self.project = nn.Sequential(
+            BasicConv2d(3, out_channels, 3, padding=1),
+            BasicConv2d(out_channels, out_channels, 3, padding=1)
+        )
+
+    def forward(self, x, target_size):
+        # x: [B, 3, H, W]
+        gray = 0.299 * x[:, 0:1] + 0.587 * x[:, 1:2] + 0.114 * x[:, 2:3]
+
+        ll = F.avg_pool2d(gray, kernel_size=2, stride=2)
+        lh = F.avg_pool2d(gray[:, :, :, 1:] - gray[:, :, :, :-1], kernel_size=2, stride=2)
+        hl = F.avg_pool2d(gray[:, :, 1:, :] - gray[:, :, :-1, :], kernel_size=2, stride=2)
+
+        hh_base = gray[:, :, 1:, 1:] - gray[:, :, :-1, 1:] - gray[:, :, 1:, :-1] + gray[:, :, :-1, :-1]
+        hh = F.avg_pool2d(hh_base, kernel_size=2, stride=2)
+
+        min_h = min(ll.shape[2], lh.shape[2], hl.shape[2], hh.shape[2])
+        min_w = min(ll.shape[3], lh.shape[3], hl.shape[3], hh.shape[3])
+
+        ll = ll[:, :, :min_h, :min_w]
+        lh = lh[:, :, :min_h, :min_w]
+        hl = hl[:, :, :min_h, :min_w]
+        hh = hh[:, :, :min_h, :min_w]
+
+        edge_stack = torch.cat([
+            torch.abs(lh),
+            torch.abs(hl),
+            torch.abs(hh)
+        ], dim=1)
+
+        edge_feat = self.project(edge_stack)
+        edge_feat = F.interpolate(edge_feat, size=target_size, mode='bilinear', align_corners=False)
+        return edge_feat
 
 
 class _ASPPModuleDeformable(nn.Module):
@@ -227,12 +262,10 @@ class FocusNet(nn.Module):
         self.attention = FocusAttention(channel, channel)
 
         self.res = lambda x, size: F.interpolate(x, size=size, mode='bilinear', align_corners=False)
-
         self.loss_fn = DiceBCELoss
-        self.final_tversky_fn = FocalTverskyLoss
+        self.final_loss_fn = FocalTverskyLoss
 
         self.final_loss_weight = 0.5
-        self.final_tversky_weight = 0.35
         self.consistency_weight = 0.15
 
         self.band_head = nn.Sequential(
@@ -241,6 +274,16 @@ class FocusNet(nn.Module):
             nn.Conv2d(channel, 1, kernel_size=1)
         )
         self.band_loss_weight = 0.25
+
+        self.wavelet_prior = HaarEdgePrior(channel)
+        self.context_fuse = nn.Sequential(
+            BasicConv2d(channel * 2, channel, 3, padding=1),
+            BasicConv2d(channel, channel, 3, padding=1)
+        )
+        self.band_fuse = nn.Sequential(
+            BasicConv2d(channel * 3, channel * 2, 3, padding=1),
+            BasicConv2d(channel * 2, channel * 2, 3, padding=1)
+        )
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
@@ -283,17 +326,22 @@ class FocusNet(nn.Module):
 
         x_t = self.context(x1_pvt)
 
+        edge_prior = self.wavelet_prior(x, x_t.shape[-2:])
+        x_t = self.context_fuse(torch.cat([x_t, edge_prior], dim=1))
+
         coarse_uncertainty = torch.abs(torch.sigmoid(a1) - torch.sigmoid(a2))
 
-        f3, a3, res_a3 = self.attention(f1, x_t, a1, coarse_uncertainty)
+        f3, a3, _ = self.attention(f1, x_t, a1, coarse_uncertainty)
         out3 = self.res(a3, base_size)
 
-        f4, a4, res_a4 = self.attention(f2, x_t, a2, coarse_uncertainty)
+        f4, a4, _ = self.attention(f2, x_t, a2, coarse_uncertainty)
         out4 = self.res(a4, base_size)
 
         out = out1 + out2 + out3 + out4
 
-        band_feat = torch.cat([f3, f4], dim=1)
+        edge_prior_band = self.wavelet_prior(x, f3.shape[-2:])
+        band_feat = torch.cat([f3, f4, edge_prior_band], dim=1)
+        band_feat = self.band_fuse(band_feat)
         band_pred = self.band_head(band_feat)
         band_pred_up = self.res(band_pred, base_size)
 
@@ -302,8 +350,9 @@ class FocusNet(nn.Module):
         loss3 = self.loss_fn(out3, y)
         loss4 = self.loss_fn(out4, y)
 
-        loss_final_dice_bce = self.loss_fn(out, y)
-        loss_final_tversky = self.final_tversky_fn(out, y)
+        loss_final_bce_dice = self.loss_fn(out, y)
+        loss_final_ft = self.final_loss_fn(out, y)
+        loss_final = 0.5 * loss_final_bce_dice + 0.5 * loss_final_ft
 
         uncertainty_full = self.res(coarse_uncertainty, base_size)
         loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
@@ -313,8 +362,7 @@ class FocusNet(nn.Module):
 
         loss = (
             loss1 + loss2 + loss3 + loss4
-            + self.final_loss_weight * loss_final_dice_bce
-            + self.final_tversky_weight * loss_final_tversky
+            + self.final_loss_weight * loss_final
             + self.consistency_weight * loss_consistency
             + self.band_loss_weight * loss_band
         )

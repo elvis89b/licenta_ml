@@ -58,6 +58,14 @@ Precision: 0.8524 (vs Paper: +0.0120, +1.43%)
 Accuracy: 0.9901 (vs Paper: +0.0014, +0.14%)
 F2: 0.7993 (vs Paper: -0.0351, -4.21%)
 
+DGFR + Band Head + Uncertainty-Gated Edge Loss
+mIoU/Jaccard: 0.8514 (vs Paper: +0.1054, +14.13%)
+mDSC/F1: 0.9082 (vs Paper: +0.0835, +10.12%)
+Recall: 0.9219 (vs Paper: +0.0747, +8.82%)
+Precision: 0.9073 (vs Paper: +0.0669, +7.96%)
+Accuracy: 0.9940 (vs Paper: +0.0053, +0.54%)
+F2: 0.9154 (vs Paper: +0.0810, +9.71%)
+
 
 FICE
 
@@ -116,6 +124,14 @@ Recall: 0.8698 (vs Paper: -0.0104, -1.18%)
 Precision: 0.9241 (vs Paper: +0.0156, +1.72%)
 Accuracy: 0.9915 (vs Paper: +0.0001, +0.01%)
 F2: 0.8701 (vs Paper: -0.0105, -1.19%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss
+mIoU/Jaccard: 0.8949 (vs Paper: +0.0696, +8.43%)
+mDSC/F1: 0.9335 (vs Paper: +0.0489, +5.53%)
+Recall: 0.9375 (vs Paper: +0.0573, +6.51%)
+Precision: 0.9366 (vs Paper: +0.0281, +3.09%)
+Accuracy: 0.9956 (vs Paper: +0.0042, +0.42%)
+F2: 0.9354 (vs Paper: +0.0548, +6.22%)
 
 
 LCI
@@ -176,6 +192,14 @@ Precision: 0.9238 (vs Paper: +0.0056, +0.61%)
 Accuracy: 0.9941 (vs Paper: +0.0000, +0.00%)
 F2: 0.9072 (vs Paper: -0.0220, -2.37%)
 
+DGFR + Band Head + Uncertainty-Gated Edge Loss
+mIoU/Jaccard: 0.9087 (vs Paper: +0.0474, +5.50%)
+mDSC/F1: 0.9511 (vs Paper: +0.0307, +3.34%)
+Recall: 0.9740 (vs Paper: +0.0362, +3.86%)
+Precision: 0.9323 (vs Paper: +0.0141, +1.54%)
+Accuracy: 0.9969 (vs Paper: +0.0028, +0.28%)
+F2: 0.9643 (vs Paper: +0.0351, +3.78%)
+
 
 NBI
 
@@ -235,6 +259,14 @@ Precision: 0.8626 (vs Paper: +0.0040, +0.47%)
 Accuracy: 0.9719 (vs Paper: -0.0028, -0.29%)
 F2: 0.8060 (vs Paper: -0.0181, -2.20%)
 
+DGFR + Band Head + Uncertainty-Gated Edge Loss
+mIoU/Jaccard: 0.8923 (vs Paper: +0.1456, +19.50%)
+mDSC/F1: 0.9358 (vs Paper: +0.1149, +14.00%)
+Recall: 0.9546 (vs Paper: +0.1231, +14.80%)
+Precision: 0.9256 (vs Paper: +0.0670, +7.80%)
+Accuracy: 0.9902 (vs Paper: +0.0155, +1.59%)
+F2: 0.9455 (vs Paper: +0.1214, +14.73%)
+
 
 WLI
 
@@ -293,3 +325,11 @@ Recall: 0.9313 (vs Paper: -0.0005, -0.05%)
 Precision: 0.9426 (vs Paper: -0.0051, -0.54%)
 Accuracy: 0.9847 (vs Paper: -0.0011, -0.11%)
 F2: 0.9296 (vs Paper: -0.0018, -0.19%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss
+mIoU/Jaccard: 0.8518 (vs Paper: -0.0344, -3.88%)
+mDSC/F1: 0.9104 (vs Paper: -0.0238, -2.55%)
+Recall: 0.9159 (vs Paper: -0.0159, -1.71%)
+Precision: 0.9282 (vs Paper: -0.0195, -2.06%)
+Accuracy: 0.9802 (vs Paper: -0.0056, -0.57%)
+F2: 0.9111 (vs Paper: -0.0203, -2.18%)

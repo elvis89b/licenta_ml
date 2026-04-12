@@ -20,30 +20,6 @@ def DiceBCELoss(inputs, targets, smooth=1):
     return Dice_BCE
 
 
-def get_edges(x):
-    sobel_x = torch.tensor(
-        [[1, 0, -1],
-         [2, 0, -2],
-         [1, 0, -1]],
-        dtype=torch.float32,
-        device=x.device
-    ).view(1, 1, 3, 3)
-
-    sobel_y = torch.tensor(
-        [[1, 2, 1],
-         [0, 0, 0],
-         [-1, -2, -1]],
-        dtype=torch.float32,
-        device=x.device
-    ).view(1, 1, 3, 3)
-
-    edge_x = F.conv2d(x, sobel_x, padding=1)
-    edge_y = F.conv2d(x, sobel_y, padding=1)
-
-    edge = torch.sqrt(edge_x ** 2 + edge_y ** 2 + 1e-6)
-    return edge
-
-
 class _ASPPModuleDeformable(nn.Module):
     def __init__(self, in_channels, planes, kernel_size, padding):
         super(_ASPPModuleDeformable, self).__init__()
@@ -236,14 +212,13 @@ class FocusNet(nn.Module):
 
         self.final_loss_weight = 0.5
         self.consistency_weight = 0.15
-        self.band_loss_weight = 0.25
-        self.edge_loss_weight = 0.08
 
         self.band_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
             BasicConv2d(channel, channel, 3, padding=1),
             nn.Conv2d(channel, 1, kernel_size=1)
         )
+        self.band_loss_weight = 0.25
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
@@ -262,18 +237,6 @@ class FocusNet(nn.Module):
         band = dilated - eroded
         band = torch.clamp(band, 0.0, 1.0)
         return band
-
-    def uncertainty_gated_edge_loss(self, logits, targets, uncertainty_map):
-        preds = torch.sigmoid(logits)
-
-        pred_edges = get_edges(preds)
-        target_edges = get_edges(targets)
-
-        gate = torch.clamp(uncertainty_map, min=0.0, max=1.0)
-        gate = 0.25 + 0.75 * gate
-
-        loss = torch.abs(pred_edges - target_edges) * gate
-        return loss.mean()
 
     def forward(self, sample):
         x = sample['images']
@@ -299,7 +262,6 @@ class FocusNet(nn.Module):
         x_t = self.context(x1_pvt)
 
         coarse_uncertainty = torch.abs(torch.sigmoid(a1) - torch.sigmoid(a2))
-        uncertainty_full = self.res(coarse_uncertainty, base_size)
 
         f3, a3, _ = self.attention(f1, x_t, a1, coarse_uncertainty)
         out3 = self.res(a3, base_size)
@@ -319,19 +281,17 @@ class FocusNet(nn.Module):
         loss4 = self.loss_fn(out4, y)
         loss_final = self.loss_fn(out, y)
 
+        uncertainty_full = self.res(coarse_uncertainty, base_size)
         loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
 
         band_target = self.make_band_target(y, kernel_size=7)
         loss_band = self.loss_fn(band_pred_up, band_target)
-
-        loss_edge_unc = self.uncertainty_gated_edge_loss(out, y, uncertainty_full)
 
         loss = (
             loss1 + loss2 + loss3 + loss4
             + self.final_loss_weight * loss_final
             + self.consistency_weight * loss_consistency
             + self.band_loss_weight * loss_band
-            + self.edge_loss_weight * loss_edge_unc
         )
 
         return {

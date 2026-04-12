@@ -342,7 +342,7 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_FreqAmpMix_UncertaintyEdge_center"
+    experiment_name = "FocusNet_DGFR_BandHead_FreqAmpMix_WaveletEdgePrior_center"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -373,7 +373,7 @@ if __name__ == "__main__":
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+FreqAmpMix+UncertaintyEdge",
+            "variant": "DGFR+BandHead+FreqAmpMix+WaveletEdgePrior",
             "setting": "center_wise",
             "image_size": image_size,
             "batch_size": batch_size,

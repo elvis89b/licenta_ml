@@ -1,5 +1,4 @@
 import os
-import random
 import time
 import datetime
 import numpy as np
@@ -7,7 +6,7 @@ import albumentations as A
 import cv2
 from glob import glob
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import wandb
 
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
@@ -43,152 +42,76 @@ def load_test_data(path):
         image = os.path.join(path, "images", f"{image_name}.png")
         mask = os.path.join(path, "masks", f"{image_name}.png")
         samples.append((image, mask))
-
     return samples
 
 
-def load_polypdb_data_0(path):
-    def get_data(path, name, modality):
-        samples = []
-        images = sorted(glob(os.path.join(path, name, modality, "images", "*.jpg")))
-        image_names = [os.path.splitext(os.path.basename(file))[0] for file in images]
-
-        mask_path = os.path.join(path, name, modality, "masks")
-        for image_name in image_names:
-            image = os.path.join(path, name, modality, "images", f"{image_name}.jpg")
-            mask_jpg = os.path.join(mask_path, f"{image_name}.jpg")
-            mask_png = os.path.join(mask_path, f"{image_name}.png")
-            if os.path.exists(mask_jpg):
-                mask = mask_jpg
-            elif os.path.exists(mask_png):
-                mask = mask_png
-            else:
-                continue
-            samples.append((image, mask))
-        return samples
-
-    all_samples = []
-    modality_list = {'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
-                     'Karolinska': ['WLI'],
-                     'Simula': ['NBI', 'WLI']}
-    for name in ['BKAI', 'Karolinska', 'Simula']:
-        for modality in modality_list[name]:
-            all_samples += get_data(path, name, modality)
-
-    total_len = len(all_samples)
-    train_len = int(0.8 * total_len)
-    test_len = int(0.1 * total_len)
-    val_len = total_len - train_len - test_len
-
-    train_samples = all_samples[:train_len]
-    test_samples = all_samples[train_len:train_len + test_len]
-    valid_samples = all_samples[train_len + test_len:]
-
-    return [train_samples, test_samples, valid_samples]
-
-
 def load_polypdb_data(path):
-    def get_data(path, name, modality):
+    def get_data(path, modality):
         samples = []
-        images = sorted(glob(os.path.join(path, name, modality, "images", "*.jpg")))
-        image_names = [os.path.splitext(os.path.basename(file))[0] for file in images]
 
-        mask_path = os.path.join(path, name, modality, "masks")
+        images_jpg = sorted(glob(os.path.join(path, modality, "images", "*.jpg")))
+        images_png = sorted(glob(os.path.join(path, modality, "images", "*.png")))
+        images = images_jpg if len(images_jpg) > 0 else images_png
+
+        image_names = [os.path.splitext(os.path.basename(file))[0] for file in images]
+        mask_path = os.path.join(path, modality, "masks")
+
         for image_name in image_names:
-            image = os.path.join(path, name, modality, "images", f"{image_name}.jpg")
+            image_jpg = os.path.join(path, modality, "images", f"{image_name}.jpg")
+            image_png = os.path.join(path, modality, "images", f"{image_name}.png")
+
+            if os.path.exists(image_jpg):
+                image = image_jpg
+            elif os.path.exists(image_png):
+                image = image_png
+            else:
+                continue
+
             mask_jpg = os.path.join(mask_path, f"{image_name}.jpg")
             mask_png = os.path.join(mask_path, f"{image_name}.png")
+
             if os.path.exists(mask_jpg):
                 mask = mask_jpg
             elif os.path.exists(mask_png):
                 mask = mask_png
             else:
                 continue
-            samples.append((image, mask))
+
+            samples.append((image, mask, modality))
+
         return samples
 
     train_samples = []
     valid_samples = []
     test_samples = []
-    modality_list = {'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
-                     'Karolinska': ['WLI'],
-                     'Simula': ['NBI', 'WLI']}
-    for name in ['BKAI', 'Karolinska', 'Simula']:
-        for modality in modality_list[name]:
-            modality_data = get_data(path, name, modality)
-            modality_len = len(modality_data)
-            modality_train_len = int(0.8 * modality_len)
-            modality_val_len = int(0.1 * modality_len)
-            train_samples += modality_data[:modality_train_len]
-            valid_samples += modality_data[modality_train_len:modality_train_len + modality_val_len]
-            test_samples += modality_data[modality_train_len + modality_val_len:]
+
+    modality_list = ['WLI', 'BLI', 'FICE', 'LCI', 'NBI']
+
+    for modality in modality_list:
+        modality_data = get_data(path, modality)
+        modality_len = len(modality_data)
+        modality_train_len = int(0.8 * modality_len)
+        modality_val_len = int(0.1 * modality_len)
+
+        train_samples += modality_data[:modality_train_len]
+        valid_samples += modality_data[modality_train_len:modality_train_len + modality_val_len]
+        test_samples += modality_data[modality_train_len + modality_val_len:]
 
     return [train_samples, valid_samples, test_samples]
-
-
-def load_polypdb_wli_data(path):
-    def get_data(path):
-        samples = []
-        images = sorted(glob(os.path.join(path, "images", "*.jpg")))
-        image_names = [os.path.splitext(os.path.basename(file))[0] for file in images]
-
-        for image_name in image_names:
-            image = os.path.join(path, "images", f"{image_name}.jpg")
-            mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
-            mask_png = os.path.join(path, "masks", f"{image_name}.png")
-            if os.path.exists(mask_png):
-                mask = mask_png
-            elif os.path.exists(mask_jpg):
-                mask = mask_jpg
-            else:
-                continue
-            samples.append((image, mask))
-        return samples
-
-    modality_data = get_data(path)
-    modality_len = len(modality_data)
-    modality_train_len = int(0.8 * modality_len)
-    modality_val_len = int(0.1 * modality_len)
-    train_samples = modality_data[:modality_train_len]
-    valid_samples = modality_data[modality_train_len:modality_train_len + modality_val_len]
-    test_samples = modality_data[modality_train_len + modality_val_len:]
-
-    return [train_samples, valid_samples, test_samples]
-
-
-def global_intensity_nonlinear(image, p=0.5):
-    if random.random() > p:
-        return image
-
-    image = image.astype(np.float32) / 255.0
-
-    gamma = random.uniform(0.7, 1.5)
-    gain = random.uniform(0.85, 1.15)
-
-    image = gain * np.power(np.clip(image, 0.0, 1.0), gamma)
-    image = np.clip(image, 0.0, 1.0)
-
-    image = (image * 255.0).astype(np.uint8)
-    return image
 
 
 class DATASET(Dataset):
-    def __init__(self, images_path, masks_path, size, transform=None, use_gin=False, gin_p=0.5):
+    def __init__(self, images_path, masks_path, size, transform=None):
         super().__init__()
         self.images_path = images_path
         self.masks_path = masks_path
         self.transform = transform
         self.n_samples = len(images_path)
         self.size = size
-        self.use_gin = use_gin
-        self.gin_p = gin_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.images_path[index], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.masks_path[index], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_gin:
-            image = global_intensity_nonlinear(image, p=self.gin_p)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -210,21 +133,20 @@ class DATASET(Dataset):
 
 
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None, use_gin=False, gin_p=0.5):
+    def __init__(self, samples_path, size, transform=None):
         super().__init__()
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
-        self.use_gin = use_gin
-        self.gin_p = gin_p
 
     def __getitem__(self, index):
-        image = cv2.imread(self.samples_path[index][0], cv2.IMREAD_COLOR)
-        mask = cv2.imread(self.samples_path[index][1], cv2.IMREAD_GRAYSCALE)
+        sample = self.samples_path[index]
+        image_path = sample[0]
+        mask_path = sample[1]
 
-        if self.use_gin:
-            image = global_intensity_nonlinear(image, p=self.gin_p)
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -259,6 +181,7 @@ def train(model, loader, optimizer, loss_fn, device):
         y = y.to(device, dtype=torch.float32)
 
         optimizer.zero_grad()
+
         sample = {'images': x, 'masks': y}
         out = model(sample)
         y_pred = out['prediction']
@@ -268,7 +191,10 @@ def train(model, loader, optimizer, loss_fn, device):
         optimizer.step()
         epoch_loss += loss.item()
 
-        batch_jac, batch_f1, batch_recall, batch_precision = [], [], [], []
+        batch_jac = []
+        batch_f1 = []
+        batch_recall = []
+        batch_precision = []
 
         y_pred = torch.sigmoid(y_pred)
         for yt, yp in zip(y, y_pred):
@@ -313,7 +239,10 @@ def evaluate(model, loader, loss_fn, device):
 
             epoch_loss += loss.item()
 
-            batch_jac, batch_f1, batch_recall, batch_precision = [], [], [], []
+            batch_jac = []
+            batch_f1 = []
+            batch_recall = []
+            batch_precision = []
 
             y_pred = torch.sigmoid(y_pred)
             for yt, yp in zip(y, y_pred):
@@ -342,7 +271,7 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_FreqAmpMix_UncertaintyEdge_modality"
+    experiment_name = "FocusNet_DGFR_BandHead_ModalityBalancedSampling_modality"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -363,38 +292,55 @@ if __name__ == "__main__":
     lr = 1e-4
     early_stopping_patience = 50
     checkpoint_path = f"files/modality_wise/{model_name}/checkpoint.pth"
-    path = "data/PolypDB/PolypDB_modality_wise/WLI"
-
-    use_gin = False
-    gin_p = 0.0
+    path = "data/PolypDB/PolypDB_modality_wise"
 
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+FreqAmpMix+UncertaintyEdge",
+            "variant": "DGFR+BandHead+ModalityBalancedSampling",
             "setting": "modality_wise",
             "image_size": image_size,
             "batch_size": batch_size,
             "epochs": num_epochs,
             "lr": lr,
             "early_stopping_patience": early_stopping_patience,
-            "train_path": path,
-            "use_gin": use_gin,
-            "gin_p": gin_p
+            "train_path": path
         }
     )
 
     data_str = f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
-    data_str += f"Use GIN: {use_gin}\nGIN p: {gin_p}\n"
     print_and_save(train_log_path, data_str)
 
-    train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
+    train_samples, valid_samples, test_samples = load_polypdb_data(path)
     _ = shuffle(train_samples, random_state=42)
 
     data_str = f"Dataset Size:\nTrain: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
+    print_and_save(train_log_path, data_str)
+
+    modality_counts = {}
+    for sample in train_samples:
+        modality = sample[2]
+        modality_counts[modality] = modality_counts.get(modality, 0) + 1
+
+    sample_weights = []
+    for sample in train_samples:
+        modality = sample[2]
+        sample_weights.append(1.0 / modality_counts[modality])
+
+    sample_weights = torch.DoubleTensor(sample_weights)
+
+    train_sampler = WeightedRandomSampler(
+        weights=sample_weights,
+        num_samples=len(sample_weights),
+        replacement=True
+    )
+
+    data_str = "Train modality counts:\n"
+    for modality, count in modality_counts.items():
+        data_str += f"{modality}: {count}\n"
     print_and_save(train_log_path, data_str)
 
     transform = A.Compose([
@@ -404,11 +350,22 @@ if __name__ == "__main__":
         A.CoarseDropout(p=0.3, max_holes=10, max_height=32, max_width=32)
     ])
 
-    train_dataset = PolypDB_DATASET(train_samples, size, transform=transform, use_gin=use_gin, gin_p=gin_p)
-    valid_dataset = PolypDB_DATASET(valid_samples, size, transform=None, use_gin=False, gin_p=0.0)
+    train_dataset = PolypDB_DATASET(train_samples, size, transform=transform)
+    valid_dataset = PolypDB_DATASET(valid_samples, size, transform=None)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        num_workers=2
+    )
+
+    valid_loader = DataLoader(
+        dataset=valid_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2
+    )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = eval(model_name)().to(device)

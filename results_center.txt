@@ -1,4 +1,4 @@
-FocusNet – Center-wise Comparison (Full Metrics)
+FocusNet – Center-wise Comparison (Full Metrics, vs Paper Only)
 
 Simula
 
@@ -11,148 +11,60 @@ Accuracy: 0.9808
 F2: 0.9216
 
 DGFR
-mIoU/Jaccard: 0.8722
-mDSC/F1: 0.9253
-Recall: 0.9253
-Precision: 0.9410
-Accuracy: 0.9816
-F2: 0.9235
+mIoU/Jaccard: 0.8722 (vs Paper: +0.0010, +0.11%)
+mDSC/F1: 0.9253 (vs Paper: +0.0023, +0.25%)
+Recall: 0.9253 (vs Paper: +0.0014, +0.15%)
+Precision: 0.9410 (vs Paper: +0.0004, +0.04%)
+Accuracy: 0.9816 (vs Paper: +0.0008, +0.08%)
+F2: 0.9235 (vs Paper: +0.0019, +0.21%)
 
 DGFR + Band Head
-mIoU/Jaccard: 0.8740
-mDSC/F1: 0.9258
-Recall: 0.9303
-Precision: 0.9378
-Accuracy: 0.9824
-F2: 0.9259
+mIoU/Jaccard: 0.8740 (vs Paper: +0.0028, +0.32%)
+mDSC/F1: 0.9258 (vs Paper: +0.0028, +0.30%)
+Recall: 0.9303 (vs Paper: +0.0064, +0.69%)
+Precision: 0.9378 (vs Paper: -0.0028, -0.30%)
+Accuracy: 0.9824 (vs Paper: +0.0016, +0.16%)
+F2: 0.9259 (vs Paper: +0.0043, +0.47%)
 
 DGFR + Band Head + MixStyle
-mIoU/Jaccard: 0.8743
-mDSC/F1: 0.9275
-Recall: 0.9304
-Precision: 0.9354
-Accuracy: 0.9849
-F2: 0.9281
+mIoU/Jaccard: 0.8743 (vs Paper: +0.0031, +0.36%)
+mDSC/F1: 0.9275 (vs Paper: +0.0045, +0.49%)
+Recall: 0.9304 (vs Paper: +0.0065, +0.70%)
+Precision: 0.9354 (vs Paper: -0.0052, -0.55%)
+Accuracy: 0.9849 (vs Paper: +0.0041, +0.42%)
+F2: 0.9281 (vs Paper: +0.0065, +0.71%)
 
 DGFR + Band Head + FreqAmpMix
-mIoU/Jaccard: 0.8821
-mDSC/F1: 0.9332
-Recall: 0.9228
-Precision: 0.9539
-Accuracy: 0.9849
-F2: 0.9260
+mIoU/Jaccard: 0.8821 (vs Paper: +0.0109, +1.25%)
+mDSC/F1: 0.9332 (vs Paper: +0.0102, +1.11%)
+Recall: 0.9228 (vs Paper: -0.0011, -0.12%)
+Precision: 0.9539 (vs Paper: +0.0133, +1.41%)
+Accuracy: 0.9849 (vs Paper: +0.0041, +0.42%)
+F2: 0.9260 (vs Paper: +0.0044, +0.48%)
 
 DGFR + Band Head + GIN
-mIoU/Jaccard: 0.8604
-mDSC/F1: 0.9147
-Recall: 0.9163
-Precision: 0.9344
-Accuracy: 0.9802
-F2: 0.9136
+mIoU/Jaccard: 0.8604 (vs Paper: -0.0108, -1.24%)
+mDSC/F1: 0.9147 (vs Paper: -0.0083, -0.90%)
+Recall: 0.9163 (vs Paper: -0.0076, -0.82%)
+Precision: 0.9344 (vs Paper: -0.0062, -0.66%)
+Accuracy: 0.9802 (vs Paper: -0.0006, -0.06%)
+F2: 0.9136 (vs Paper: -0.0080, -0.87%)
 
 DGFR + Band Head + FreqAmpMix + Final Focal Tversky
-mIoU/Jaccard: 0.8734
-mDSC/F1: 0.9261
-Recall: 0.9257
-Precision: 0.9416
-Accuracy: 0.9821
-F2: 0.9242
+mIoU/Jaccard: 0.8734 (vs Paper: +0.0022, +0.25%)
+mDSC/F1: 0.9261 (vs Paper: +0.0031, +0.34%)
+Recall: 0.9257 (vs Paper: +0.0018, +0.19%)
+Precision: 0.9416 (vs Paper: +0.0010, +0.11%)
+Accuracy: 0.9821 (vs Paper: +0.0013, +0.13%)
+F2: 0.9242 (vs Paper: +0.0026, +0.28%)
 
 DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior
-mIoU/Jaccard: 0.8788
-mDSC/F1: 0.9308
-Recall: 0.9266
-Precision: 0.9460
-Accuracy: 0.9855
-F2: 0.9269
-
-Δ DGFR vs Paper
-mIoU/Jaccard: +0.0010
-mDSC/F1: +0.0023
-Recall: +0.0014
-Precision: +0.0004
-Accuracy: +0.0008
-F2: +0.0019
-
-Δ DGFR + Band Head vs Paper
-mIoU/Jaccard: +0.0028
-mDSC/F1: +0.0028
-Recall: +0.0064
-Precision: -0.0028
-Accuracy: +0.0016
-F2: +0.0043
-
-Δ DGFR + Band Head + MixStyle vs Paper
-mIoU/Jaccard: +0.0031
-mDSC/F1: +0.0045
-Recall: +0.0065
-Precision: -0.0052
-Accuracy: +0.0041
-F2: +0.0065
-
-Δ DGFR + Band Head + FreqAmpMix vs Paper
-mIoU/Jaccard: +0.0109
-mDSC/F1: +0.0102
-Recall: -0.0011
-Precision: +0.0133
-Accuracy: +0.0041
-F2: +0.0044
-
-Δ DGFR + Band Head + FreqAmpMix vs DGFR + Band Head
-mIoU/Jaccard: +0.0081
-mDSC/F1: +0.0074
-Recall: -0.0075
-Precision: +0.0161
-Accuracy: +0.0025
-F2: +0.0001
-
-Δ DGFR + Band Head + GIN vs Paper
-mIoU/Jaccard: -0.0108
-mDSC/F1: -0.0083
-Recall: -0.0076
-Precision: -0.0062
-Accuracy: -0.0006
-F2: -0.0080
-
-Δ DGFR + Band Head + GIN vs DGFR + Band Head
-mIoU/Jaccard: -0.0136
-mDSC/F1: -0.0111
-Recall: -0.0140
-Precision: -0.0034
-Accuracy: -0.0022
-F2: -0.0123
-
-Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
-mIoU/Jaccard: +0.0022
-mDSC/F1: +0.0031
-Recall: +0.0018
-Precision: +0.0010
-Accuracy: +0.0013
-F2: +0.0026
-
-Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
-mIoU/Jaccard: -0.0006
-mDSC/F1: +0.0003
-Recall: -0.0046
-Precision: +0.0038
-Accuracy: -0.0003
-F2: -0.0017
-
-Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs Paper
-mIoU/Jaccard: +0.0076
-mDSC/F1: +0.0078
-Recall: +0.0027
-Precision: +0.0054
-Accuracy: +0.0047
-F2: +0.0053
-
-Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs DGFR + Band Head
-mIoU/Jaccard: +0.0048
-mDSC/F1: +0.0050
-Recall: -0.0037
-Precision: +0.0082
-Accuracy: +0.0031
-F2: +0.0010
+mIoU/Jaccard: 0.8788 (vs Paper: +0.0076, +0.87%)
+mDSC/F1: 0.9308 (vs Paper: +0.0078, +0.85%)
+Recall: 0.9266 (vs Paper: +0.0027, +0.29%)
+Precision: 0.9460 (vs Paper: +0.0054, +0.57%)
+Accuracy: 0.9855 (vs Paper: +0.0047, +0.48%)
+F2: 0.9269 (vs Paper: +0.0053, +0.58%)
 
 BKAI
 
@@ -165,148 +77,60 @@ Accuracy: 0.9921
 F2: 0.9201
 
 DGFR
-mIoU/Jaccard: 0.8621
-mDSC/F1: 0.9135
-Recall: 0.9306
-Precision: 0.9144
-Accuracy: 0.9921
-F2: 0.9204
+mIoU/Jaccard: 0.8621 (vs Paper: +0.0007, +0.08%)
+mDSC/F1: 0.9135 (vs Paper: +0.0008, +0.09%)
+Recall: 0.9306 (vs Paper: -0.0008, -0.09%)
+Precision: 0.9144 (vs Paper: +0.0007, +0.08%)
+Accuracy: 0.9921 (vs Paper: +0.0000, +0.00%)
+F2: 0.9204 (vs Paper: +0.0003, +0.03%)
 
 DGFR + Band Head
-mIoU/Jaccard: 0.8620
-mDSC/F1: 0.9136
-Recall: 0.9278
-Precision: 0.9166
-Accuracy: 0.9923
-F2: 0.9194
+mIoU/Jaccard: 0.8620 (vs Paper: +0.0006, +0.07%)
+mDSC/F1: 0.9136 (vs Paper: +0.0009, +0.10%)
+Recall: 0.9278 (vs Paper: -0.0036, -0.39%)
+Precision: 0.9166 (vs Paper: +0.0029, +0.32%)
+Accuracy: 0.9923 (vs Paper: +0.0002, +0.02%)
+F2: 0.9194 (vs Paper: -0.0007, -0.08%)
 
 DGFR + Band Head + MixStyle
-mIoU/Jaccard: 0.8552
-mDSC/F1: 0.9096
-Recall: 0.9315
-Precision: 0.9075
-Accuracy: 0.9916
-F2: 0.9188
+mIoU/Jaccard: 0.8552 (vs Paper: -0.0062, -0.72%)
+mDSC/F1: 0.9096 (vs Paper: -0.0031, -0.34%)
+Recall: 0.9315 (vs Paper: +0.0001, +0.01%)
+Precision: 0.9075 (vs Paper: -0.0062, -0.68%)
+Accuracy: 0.9916 (vs Paper: -0.0005, -0.05%)
+F2: 0.9188 (vs Paper: -0.0013, -0.14%)
 
 DGFR + Band Head + FreqAmpMix
-mIoU/Jaccard: 0.8613
-mDSC/F1: 0.9125
-Recall: 0.9292
-Precision: 0.9157
-Accuracy: 0.9917
-F2: 0.9187
+mIoU/Jaccard: 0.8613 (vs Paper: -0.0001, -0.01%)
+mDSC/F1: 0.9125 (vs Paper: -0.0002, -0.02%)
+Recall: 0.9292 (vs Paper: -0.0022, -0.24%)
+Precision: 0.9157 (vs Paper: +0.0020, +0.22%)
+Accuracy: 0.9917 (vs Paper: -0.0004, -0.04%)
+F2: 0.9187 (vs Paper: -0.0014, -0.15%)
 
 DGFR + Band Head + GIN
-mIoU/Jaccard: 0.8581
-mDSC/F1: 0.9106
-Recall: 0.9309
-Precision: 0.9124
-Accuracy: 0.9918
-F2: 0.9191
+mIoU/Jaccard: 0.8581 (vs Paper: -0.0033, -0.38%)
+mDSC/F1: 0.9106 (vs Paper: -0.0021, -0.23%)
+Recall: 0.9309 (vs Paper: -0.0005, -0.05%)
+Precision: 0.9124 (vs Paper: -0.0013, -0.14%)
+Accuracy: 0.9918 (vs Paper: -0.0003, -0.03%)
+F2: 0.9191 (vs Paper: -0.0010, -0.11%)
 
 DGFR + Band Head + FreqAmpMix + Final Focal Tversky
-mIoU/Jaccard: 0.8629
-mDSC/F1: 0.9146
-Recall: 0.9312
-Precision: 0.9173
-Accuracy: 0.9919
-F2: 0.9209
+mIoU/Jaccard: 0.8629 (vs Paper: +0.0015, +0.17%)
+mDSC/F1: 0.9146 (vs Paper: +0.0019, +0.21%)
+Recall: 0.9312 (vs Paper: -0.0002, -0.02%)
+Precision: 0.9173 (vs Paper: +0.0036, +0.39%)
+Accuracy: 0.9919 (vs Paper: -0.0002, -0.02%)
+F2: 0.9209 (vs Paper: +0.0008, +0.09%)
 
 DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior
-mIoU/Jaccard: 0.8568
-mDSC/F1: 0.9101
-Recall: 0.9280
-Precision: 0.9127
-Accuracy: 0.9919
-F2: 0.9172
-
-Δ DGFR vs Paper
-mIoU/Jaccard: +0.0007
-mDSC/F1: +0.0008
-Recall: -0.0008
-Precision: +0.0007
-Accuracy: +0.0000
-F2: +0.0003
-
-Δ DGFR + Band Head vs Paper
-mIoU/Jaccard: +0.0006
-mDSC/F1: +0.0009
-Recall: -0.0036
-Precision: +0.0029
-Accuracy: +0.0002
-F2: -0.0007
-
-Δ DGFR + Band Head + MixStyle vs Paper
-mIoU/Jaccard: -0.0062
-mDSC/F1: -0.0031
-Recall: +0.0001
-Precision: -0.0062
-Accuracy: -0.0005
-F2: -0.0013
-
-Δ DGFR + Band Head + FreqAmpMix vs Paper
-mIoU/Jaccard: -0.0001
-mDSC/F1: -0.0002
-Recall: -0.0022
-Precision: +0.0020
-Accuracy: -0.0004
-F2: -0.0014
-
-Δ DGFR + Band Head + FreqAmpMix vs DGFR + Band Head
-mIoU/Jaccard: -0.0007
-mDSC/F1: -0.0011
-Recall: +0.0014
-Precision: -0.0009
-Accuracy: -0.0006
-F2: -0.0007
-
-Δ DGFR + Band Head + GIN vs Paper
-mIoU/Jaccard: -0.0033
-mDSC/F1: -0.0021
-Recall: -0.0005
-Precision: -0.0013
-Accuracy: -0.0003
-F2: -0.0010
-
-Δ DGFR + Band Head + GIN vs DGFR + Band Head
-mIoU/Jaccard: -0.0039
-mDSC/F1: -0.0030
-Recall: +0.0031
-Precision: -0.0042
-Accuracy: -0.0005
-F2: -0.0003
-
-Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
-mIoU/Jaccard: +0.0015
-mDSC/F1: +0.0019
-Recall: -0.0002
-Precision: +0.0036
-Accuracy: -0.0002
-F2: +0.0008
-
-Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
-mIoU/Jaccard: +0.0009
-mDSC/F1: +0.0010
-Recall: +0.0034
-Precision: +0.0007
-Accuracy: -0.0004
-F2: +0.0015
-
-Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs Paper
-mIoU/Jaccard: -0.0046
-mDSC/F1: -0.0026
-Recall: -0.0034
-Precision: -0.0010
-Accuracy: -0.0002
-F2: -0.0029
-
-Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs DGFR + Band Head
-mIoU/Jaccard: -0.0052
-mDSC/F1: -0.0035
-Recall: +0.0002
-Precision: -0.0039
-Accuracy: -0.0004
-F2: -0.0022
+mIoU/Jaccard: 0.8568 (vs Paper: -0.0046, -0.53%)
+mDSC/F1: 0.9101 (vs Paper: -0.0026, -0.28%)
+Recall: 0.9280 (vs Paper: -0.0034, -0.37%)
+Precision: 0.9127 (vs Paper: -0.0010, -0.11%)
+Accuracy: 0.9919 (vs Paper: -0.0002, -0.02%)
+F2: 0.9172 (vs Paper: -0.0029, -0.32%)
 
 Karolinska
 
@@ -319,153 +143,65 @@ Accuracy: 0.9899
 F2: 0.9425
 
 DGFR
-mIoU/Jaccard: 0.9083
-mDSC/F1: 0.9504
-Recall: 0.9414
-Precision: 0.9640
-Accuracy: 0.9911
-F2: 0.9445
+mIoU/Jaccard: 0.9083 (vs Paper: +0.0042, +0.46%)
+mDSC/F1: 0.9504 (vs Paper: +0.0040, +0.42%)
+Recall: 0.9414 (vs Paper: +0.0003, +0.03%)
+Precision: 0.9640 (vs Paper: +0.0039, +0.41%)
+Accuracy: 0.9911 (vs Paper: +0.0012, +0.12%)
+F2: 0.9445 (vs Paper: +0.0020, +0.21%)
 
 DGFR + Band Head
-mIoU/Jaccard: 0.9117
-mDSC/F1: 0.9526
-Recall: 0.9521
-Precision: 0.9570
-Accuracy: 0.9930
-F2: 0.9518
+mIoU/Jaccard: 0.9117 (vs Paper: +0.0076, +0.84%)
+mDSC/F1: 0.9526 (vs Paper: +0.0062, +0.66%)
+Recall: 0.9521 (vs Paper: +0.0110, +1.17%)
+Precision: 0.9570 (vs Paper: -0.0031, -0.32%)
+Accuracy: 0.9930 (vs Paper: +0.0031, +0.31%)
+F2: 0.9518 (vs Paper: +0.0093, +0.99%)
 
 DGFR + Band Head + Boundary Loss
-mIoU/Jaccard: 0.9065
-mDSC/F1: 0.9490
-Recall: 0.9446
-Precision: 0.9584
-Accuracy: 0.9910
-F2: 0.9459
+mIoU/Jaccard: 0.9065 (vs Paper: +0.0024, +0.27%)
+mDSC/F1: 0.9490 (vs Paper: +0.0026, +0.27%)
+Recall: 0.9446 (vs Paper: +0.0035, +0.37%)
+Precision: 0.9584 (vs Paper: -0.0017, -0.18%)
+Accuracy: 0.9910 (vs Paper: +0.0011, +0.11%)
+F2: 0.9459 (vs Paper: +0.0034, +0.36%)
 
 DGFR + Band Head + MixStyle
-mIoU/Jaccard: 0.9083
-mDSC/F1: 0.9503
-Recall: 0.9559
-Precision: 0.9488
-Accuracy: 0.9917
-F2: 0.9531
+mIoU/Jaccard: 0.9083 (vs Paper: +0.0042, +0.46%)
+mDSC/F1: 0.9503 (vs Paper: +0.0039, +0.41%)
+Recall: 0.9559 (vs Paper: +0.0148, +1.57%)
+Precision: 0.9488 (vs Paper: -0.0113, -1.18%)
+Accuracy: 0.9917 (vs Paper: +0.0018, +0.18%)
+F2: 0.9531 (vs Paper: +0.0106, +1.12%)
 
 DGFR + Band Head + FreqAmpMix
-mIoU/Jaccard: 0.9021
-mDSC/F1: 0.9466
-Recall: 0.9391
-Precision: 0.9587
-Accuracy: 0.9903
-F2: 0.9416
+mIoU/Jaccard: 0.9021 (vs Paper: -0.0020, -0.22%)
+mDSC/F1: 0.9466 (vs Paper: +0.0002, +0.02%)
+Recall: 0.9391 (vs Paper: -0.0020, -0.21%)
+Precision: 0.9587 (vs Paper: -0.0014, -0.15%)
+Accuracy: 0.9903 (vs Paper: +0.0004, +0.04%)
+F2: 0.9416 (vs Paper: -0.0009, -0.10%)
 
 DGFR + Band Head + GIN
-mIoU/Jaccard: 0.8952
-mDSC/F1: 0.9419
-Recall: 0.9456
-Precision: 0.9453
-Accuracy: 0.9895
-F2: 0.9432
+mIoU/Jaccard: 0.8952 (vs Paper: -0.0089, -0.98%)
+mDSC/F1: 0.9419 (vs Paper: -0.0045, -0.48%)
+Recall: 0.9456 (vs Paper: +0.0045, +0.48%)
+Precision: 0.9453 (vs Paper: -0.0148, -1.54%)
+Accuracy: 0.9895 (vs Paper: -0.0004, -0.04%)
+F2: 0.9432 (vs Paper: +0.0007, +0.07%)
 
 DGFR + Band Head + FreqAmpMix + Final Focal Tversky
-mIoU/Jaccard: 0.9061
-mDSC/F1: 0.9483
-Recall: 0.9366
-Precision: 0.9667
-Accuracy: 0.9906
-F2: 0.9407
+mIoU/Jaccard: 0.9061 (vs Paper: +0.0020, +0.22%)
+mDSC/F1: 0.9483 (vs Paper: +0.0019, +0.20%)
+Recall: 0.9366 (vs Paper: -0.0045, -0.48%)
+Precision: 0.9667 (vs Paper: +0.0066, +0.69%)
+Accuracy: 0.9906 (vs Paper: +0.0007, +0.07%)
+F2: 0.9407 (vs Paper: -0.0018, -0.19%)
 
 DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior
-mIoU/Jaccard: 0.9074
-mDSC/F1: 0.9503
-Recall: 0.9463
-Precision: 0.9585
-Accuracy: 0.9914
-F2: 0.9474
-
-Δ DGFR vs Paper
-mIoU/Jaccard: +0.0042
-mDSC/F1: +0.0040
-Recall: +0.0003
-Precision: +0.0039
-Accuracy: +0.0012
-F2: +0.0020
-
-Δ DGFR + Band Head vs Paper
-mIoU/Jaccard: +0.0076
-mDSC/F1: +0.0062
-Recall: +0.0110
-Precision: -0.0031
-Accuracy: +0.0031
-F2: +0.0093
-
-Δ DGFR + Band Head + MixStyle vs Paper
-mIoU/Jaccard: +0.0042
-mDSC/F1: +0.0039
-Recall: +0.0148
-Precision: -0.0113
-Accuracy: +0.0018
-F2: +0.0106
-
-Δ DGFR + Band Head + FreqAmpMix vs Paper
-mIoU/Jaccard: -0.0020
-mDSC/F1: +0.0002
-Recall: -0.0020
-Precision: -0.0014
-Accuracy: +0.0004
-F2: -0.0009
-
-Δ DGFR + Band Head + FreqAmpMix vs DGFR + Band Head
-mIoU/Jaccard: -0.0096
-mDSC/F1: -0.0060
-Recall: -0.0130
-Precision: +0.0017
-Accuracy: -0.0027
-F2: -0.0102
-
-Δ DGFR + Band Head + GIN vs Paper
-mIoU/Jaccard: -0.0089
-mDSC/F1: -0.0045
-Recall: +0.0045
-Precision: -0.0148
-Accuracy: -0.0004
-F2: +0.0007
-
-Δ DGFR + Band Head + GIN vs DGFR + Band Head
-mIoU/Jaccard: -0.0165
-mDSC/F1: -0.0107
-Recall: -0.0065
-Precision: -0.0117
-Accuracy: -0.0035
-F2: -0.0086
-
-Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs Paper
-mIoU/Jaccard: +0.0020
-mDSC/F1: +0.0019
-Recall: -0.0045
-Precision: +0.0066
-Accuracy: +0.0007
-F2: -0.0018
-
-Δ DGFR + Band Head + FreqAmpMix + Final Focal Tversky vs DGFR + Band Head
-mIoU/Jaccard: -0.0056
-mDSC/F1: -0.0043
-Recall: -0.0155
-Precision: +0.0097
-Accuracy: -0.0024
-F2: -0.0111
-
-Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs Paper
-mIoU/Jaccard: +0.0033
-mDSC/F1: +0.0039
-Recall: +0.0052
-Precision: -0.0016
-Accuracy: +0.0015
-F2: +0.0049
-
-Δ DGFR + Band Head + FreqAmpMix + Wavelet Edge Prior vs DGFR + Band Head
-mIoU/Jaccard: -0.0043
-mDSC/F1: -0.0023
-Recall: -0.0058
-Precision: +0.0015
-Accuracy: -0.0016
-F2: -0.0044
+mIoU/Jaccard: 0.9074 (vs Paper: +0.0033, +0.37%)
+mDSC/F1: 0.9503 (vs Paper: +0.0039, +0.41%)
+Recall: 0.9463 (vs Paper: +0.0052, +0.55%)
+Precision: 0.9585 (vs Paper: -0.0016, -0.17%)
+Accuracy: 0.9914 (vs Paper: +0.0015, +0.15%)
+F2: 0.9474 (vs Paper: +0.0049, +0.52%)

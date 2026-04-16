@@ -68,9 +68,12 @@ def load_polypdb_data_0(path):
         return samples
 
     all_samples = []
-    modality_list = {'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
-                     'Karolinska': ['WLI'],
-                     'Simula': ['NBI', 'WLI']}
+    modality_list = {
+        'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
+        'Karolinska': ['WLI'],
+        'Simula': ['NBI', 'WLI']
+    }
+
     for name in ['BKAI', 'Karolinska', 'Simula']:
         for modality in modality_list[name]:
             all_samples += get_data(path, name, modality)
@@ -110,15 +113,19 @@ def load_polypdb_data(path):
     train_samples = []
     valid_samples = []
     test_samples = []
-    modality_list = {'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
-                     'Karolinska': ['WLI'],
-                     'Simula': ['NBI', 'WLI']}
+    modality_list = {
+        'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
+        'Karolinska': ['WLI'],
+        'Simula': ['NBI', 'WLI']
+    }
+
     for name in ['BKAI', 'Karolinska', 'Simula']:
         for modality in modality_list[name]:
             modality_data = get_data(path, name, modality)
             modality_len = len(modality_data)
             modality_train_len = int(0.8 * modality_len)
             modality_val_len = int(0.1 * modality_len)
+
             train_samples += modality_data[:modality_train_len]
             valid_samples += modality_data[modality_train_len:modality_train_len + modality_val_len]
             test_samples += modality_data[modality_train_len + modality_val_len:]
@@ -136,12 +143,14 @@ def load_polypdb_wli_data(path):
             image = os.path.join(path, "images", f"{image_name}.jpg")
             mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
             mask_png = os.path.join(path, "masks", f"{image_name}.png")
+
             if os.path.exists(mask_png):
                 mask = mask_png
             elif os.path.exists(mask_jpg):
                 mask = mask_jpg
             else:
                 continue
+
             samples.append((image, mask))
         return samples
 
@@ -149,6 +158,7 @@ def load_polypdb_wli_data(path):
     modality_len = len(modality_data)
     modality_train_len = int(0.8 * modality_len)
     modality_val_len = int(0.1 * modality_len)
+
     train_samples = modality_data[:modality_train_len]
     valid_samples = modality_data[modality_train_len:modality_train_len + modality_val_len]
     test_samples = modality_data[modality_train_len + modality_val_len:]
@@ -172,8 +182,38 @@ def global_intensity_nonlinear(image, p=0.5):
     return image
 
 
+def lab_color_transfer(image, p=0.5):
+    if random.random() > p:
+        return image
+
+    img = image.astype(np.uint8)
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+
+    l, a, b = cv2.split(lab)
+
+    l_scale = random.uniform(0.90, 1.10)
+    l_shift = random.uniform(-8.0, 8.0)
+
+    a_scale = random.uniform(0.85, 1.15)
+    a_shift = random.uniform(-12.0, 12.0)
+
+    b_scale = random.uniform(0.85, 1.15)
+    b_shift = random.uniform(-12.0, 12.0)
+
+    l = np.clip(l * l_scale + l_shift, 0, 255)
+    a = np.clip((a - 128.0) * a_scale + 128.0 + a_shift, 0, 255)
+    b = np.clip((b - 128.0) * b_scale + 128.0 + b_shift, 0, 255)
+
+    lab_aug = cv2.merge([l, a, b]).astype(np.uint8)
+    image_aug = cv2.cvtColor(lab_aug, cv2.COLOR_LAB2BGR)
+
+    return image_aug
+
+
 class DATASET(Dataset):
-    def __init__(self, images_path, masks_path, size, transform=None, use_gin=False, gin_p=0.5):
+    def __init__(self, images_path, masks_path, size, transform=None,
+                 use_gin=False, gin_p=0.5,
+                 use_lab=False, lab_p=0.5):
         super().__init__()
         self.images_path = images_path
         self.masks_path = masks_path
@@ -182,6 +222,8 @@ class DATASET(Dataset):
         self.size = size
         self.use_gin = use_gin
         self.gin_p = gin_p
+        self.use_lab = use_lab
+        self.lab_p = lab_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.images_path[index], cv2.IMREAD_COLOR)
@@ -189,6 +231,9 @@ class DATASET(Dataset):
 
         if self.use_gin:
             image = global_intensity_nonlinear(image, p=self.gin_p)
+
+        if self.use_lab:
+            image = lab_color_transfer(image, p=self.lab_p)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -210,7 +255,9 @@ class DATASET(Dataset):
 
 
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None, use_gin=False, gin_p=0.5):
+    def __init__(self, samples_path, size, transform=None,
+                 use_gin=False, gin_p=0.5,
+                 use_lab=False, lab_p=0.5):
         super().__init__()
         self.samples_path = samples_path
         self.transform = transform
@@ -218,6 +265,8 @@ class PolypDB_DATASET(Dataset):
         self.size = size
         self.use_gin = use_gin
         self.gin_p = gin_p
+        self.use_lab = use_lab
+        self.lab_p = lab_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.samples_path[index][0], cv2.IMREAD_COLOR)
@@ -225,6 +274,9 @@ class PolypDB_DATASET(Dataset):
 
         if self.use_gin:
             image = global_intensity_nonlinear(image, p=self.gin_p)
+
+        if self.use_lab:
+            image = lab_color_transfer(image, p=self.lab_p)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -342,7 +394,7 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_FreqAmpMix_WaveletEdgePrior_center"
+    experiment_name = "FocusNet_DGFR_BandHead_LABColorTransfer_center"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -367,13 +419,15 @@ if __name__ == "__main__":
 
     use_gin = False
     gin_p = 0.0
+    use_lab = True
+    lab_p = 0.5
 
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+FreqAmpMix+WaveletEdgePrior",
+            "variant": "DGFR+BandHead+LABColorTransfer",
             "setting": "center_wise",
             "image_size": image_size,
             "batch_size": batch_size,
@@ -382,13 +436,16 @@ if __name__ == "__main__":
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
             "use_gin": use_gin,
-            "gin_p": gin_p
+            "gin_p": gin_p,
+            "use_lab": use_lab,
+            "lab_p": lab_p
         }
     )
 
     data_str = f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
     data_str += f"Use GIN: {use_gin}\nGIN p: {gin_p}\n"
+    data_str += f"Use LAB: {use_lab}\nLAB p: {lab_p}\n"
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
@@ -404,8 +461,19 @@ if __name__ == "__main__":
         A.CoarseDropout(p=0.3, max_holes=10, max_height=32, max_width=32)
     ])
 
-    train_dataset = PolypDB_DATASET(train_samples, size, transform=transform, use_gin=use_gin, gin_p=gin_p)
-    valid_dataset = PolypDB_DATASET(valid_samples, size, transform=None, use_gin=False, gin_p=0.0)
+    train_dataset = PolypDB_DATASET(
+        train_samples, size,
+        transform=transform,
+        use_gin=use_gin, gin_p=gin_p,
+        use_lab=use_lab, lab_p=lab_p
+    )
+
+    valid_dataset = PolypDB_DATASET(
+        valid_samples, size,
+        transform=None,
+        use_gin=False, gin_p=0.0,
+        use_lab=False, lab_p=0.0
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2)

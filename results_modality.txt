@@ -66,6 +66,13 @@ Precision: 0.9073 (vs Paper: +0.0669, +7.96%)
 Accuracy: 0.9940 (vs Paper: +0.0053, +0.54%)
 F2: 0.9154 (vs Paper: +0.0810, +9.71%)
 
+DGFR + Band Head + LAB Color Transfer Augmentation
+mIoU/Jaccard: 0.7408 (vs Paper: -0.0052, -0.70%)
+mDSC/F1: 0.8181 (vs Paper: -0.0066, -0.80%)
+Recall: 0.8285 (vs Paper: -0.0187, -2.21%)
+Precision: 0.8742 (vs Paper: +0.0338, +4.02%)
+Accuracy: 0.9885 (vs Paper: -0.0002, -0.02%)
+F2: 0.8146 (vs Paper: -0.0198, -2.37%)
 
 FICE
 
@@ -132,6 +139,14 @@ Recall: 0.9375 (vs Paper: +0.0573, +6.51%)
 Precision: 0.9366 (vs Paper: +0.0281, +3.09%)
 Accuracy: 0.9956 (vs Paper: +0.0042, +0.42%)
 F2: 0.9354 (vs Paper: +0.0548, +6.22%)
+
+DGFR + Band Head + LAB Color Transfer Augmentation
+mIoU/Jaccard: 0.7933 (vs Paper: -0.0320, -3.88%)
+mDSC/F1: 0.8555 (vs Paper: -0.0291, -3.29%)
+Recall: 0.8454 (vs Paper: -0.0348, -3.95%)
+Precision: 0.9061 (vs Paper: -0.0024, -0.26%)
+Accuracy: 0.9878 (vs Paper: -0.0036, -0.36%)
+F2: 0.8475 (vs Paper: -0.0331, -3.76%)
 
 
 LCI
@@ -200,6 +215,13 @@ Precision: 0.9323 (vs Paper: +0.0141, +1.54%)
 Accuracy: 0.9969 (vs Paper: +0.0028, +0.28%)
 F2: 0.9643 (vs Paper: +0.0351, +3.78%)
 
+DGFR + Band Head + LAB Color Transfer Augmentation
+mIoU/Jaccard: 0.7399 (vs Paper: -0.0068, -0.91%)
+mDSC/F1: 0.8180 (vs Paper: -0.0029, -0.35%)
+Recall: 0.8327 (vs Paper: +0.0012, +0.14%)
+Precision: 0.8543 (vs Paper: -0.0043, -0.50%)
+Accuracy: 0.9728 (vs Paper: -0.0019, -0.19%)
+F2: 0.8228 (vs Paper: -0.0013, -0.16%)
 
 NBI
 
@@ -267,6 +289,13 @@ Precision: 0.9256 (vs Paper: +0.0670, +7.80%)
 Accuracy: 0.9902 (vs Paper: +0.0155, +1.59%)
 F2: 0.9455 (vs Paper: +0.1214, +14.73%)
 
+DGFR + Band Head + LAB Color Transfer Augmentation
+mIoU/Jaccard: 0.7399 (vs Paper: -0.0068, -0.91%)
+mDSC/F1: 0.8180 (vs Paper: -0.0029, -0.35%)
+Recall: 0.8327 (vs Paper: +0.0012, +0.14%)
+Precision: 0.8543 (vs Paper: -0.0043, -0.50%)
+Accuracy: 0.9728 (vs Paper: -0.0019, -0.19%)
+F2: 0.8228 (vs Paper: -0.0013, -0.16%)
 
 WLI
 
@@ -333,3 +362,11 @@ Recall: 0.9159 (vs Paper: -0.0159, -1.71%)
 Precision: 0.9282 (vs Paper: -0.0195, -2.06%)
 Accuracy: 0.9802 (vs Paper: -0.0056, -0.57%)
 F2: 0.9111 (vs Paper: -0.0203, -2.18%)
+
+DGFR + Band Head + LAB Color Transfer Augmentation
+mIoU/Jaccard: 0.8844 (vs Paper: -0.0018, -0.20%)
+mDSC/F1: 0.9342 (vs Paper: +0.0000, +0.00%)
+Recall: 0.9320 (vs Paper: +0.0002, +0.02%)
+Precision: 0.9478 (vs Paper: +0.0001, +0.01%)
+Accuracy: 0.9851 (vs Paper: -0.0007, -0.07%)
+F2: 0.9311 (vs Paper: -0.0003, -0.03%)

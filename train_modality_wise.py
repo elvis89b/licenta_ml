@@ -174,10 +174,6 @@ def load_polypdb_wli_data(path):
 
 
 def lab_color_transfer(source, reference):
-    """
-    Simple LAB color transfer:
-    match source LAB mean/std to reference LAB mean/std
-    """
     source_lab = cv2.cvtColor(source, cv2.COLOR_BGR2LAB).astype(np.float32)
     ref_lab = cv2.cvtColor(reference, cv2.COLOR_BGR2LAB).astype(np.float32)
 
@@ -198,7 +194,7 @@ def lab_color_transfer(source, reference):
 
 class DATASET(Dataset):
     def __init__(self, images_path, masks_path, size, transform=None,
-                 use_color_transfer=False, color_transfer_p=0.3):
+                 use_color_transfer=False, color_transfer_p=0.0):
         super().__init__()
 
         self.images_path = images_path
@@ -242,7 +238,7 @@ class DATASET(Dataset):
 
 class PolypDB_DATASET(Dataset):
     def __init__(self, samples_path, size, transform=None,
-                 use_color_transfer=False, color_transfer_p=0.3):
+                 use_color_transfer=False, color_transfer_p=0.0):
         super().__init__()
 
         self.samples_path = samples_path
@@ -387,7 +383,8 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_LABColorTransfer_modality"
+    experiment_name = "FocusNet_DGFR_BandHead_AdaptiveUncertaintyMultiScaleEdgeRefinement_modality"
+    variant_name = "DGFR+BandHead+AdaptiveUncertaintyMultiScaleEdgeRefinement"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -406,24 +403,26 @@ if __name__ == "__main__":
     batch_size = 16
     num_epochs = 500
     lr = 1e-4
+    weight_decay = 1e-4
     early_stopping_patience = 50
     checkpoint_path = f"files/modality_wise/{model_name}/checkpoint.pth"
     path = "data/PolypDB/PolypDB_modality_wise/WLI"
 
-    use_color_transfer = True
-    color_transfer_p = 0.30
+    use_color_transfer = False
+    color_transfer_p = 0.0
 
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+LABColorTransfer",
+            "variant": variant_name,
             "setting": "modality_wise",
             "image_size": image_size,
             "batch_size": batch_size,
             "epochs": num_epochs,
             "lr": lr,
+            "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
             "use_color_transfer": use_color_transfer,
@@ -431,14 +430,16 @@ if __name__ == "__main__":
         }
     )
 
-    data_str = f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nEpochs: {num_epochs}\n"
+    data_str = f"Experiment: {experiment_name}\n"
+    data_str += f"Variant: {variant_name}\n"
+    data_str += f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nWeight Decay: {weight_decay}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
     data_str += f"Use LAB Color Transfer: {use_color_transfer}\n"
     data_str += f"Color Transfer p: {color_transfer_p}\n"
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
-    _ = shuffle(train_samples, random_state=42)
+    train_samples = shuffle(train_samples, random_state=42)
 
     data_str = f"Dataset Size:\nTrain: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
     print_and_save(train_log_path, data_str)
@@ -483,12 +484,12 @@ if __name__ == "__main__":
     model = eval(model_name)().to(device)
     print(f"train model: {model_name}")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, verbose=True)
     loss_fn = DiceBCELoss()
-    loss_name = "BCE Dice Loss"
+    loss_name = "BCE Dice Loss (model uses internal adaptive loss)"
 
-    data_str = f"Optimizer: Adam\nLoss: {loss_name}\n"
+    data_str = f"Optimizer: AdamW\nLoss: {loss_name}\n"
     print_and_save(train_log_path, data_str)
 
     best_valid_metrics = 0.0
@@ -496,6 +497,9 @@ if __name__ == "__main__":
 
     for epoch in range(num_epochs):
         start_time = time.time()
+
+        if hasattr(model, "set_epoch"):
+            model.set_epoch(epoch, num_epochs)
 
         train_loss, train_metrics = train(model, train_loader, optimizer, loss_fn, device)
         valid_loss, valid_metrics = evaluate(model, valid_loader, loss_fn, device)
@@ -539,7 +543,7 @@ if __name__ == "__main__":
         print_and_save(train_log_path, data_str)
 
         if early_stopping_count == early_stopping_patience:
-            data_str = f"Early stopping: validation loss stops improving from last {early_stopping_patience} continously.\n"
+            data_str = f"Early stopping: validation F1 stopped improving for {early_stopping_patience} consecutive epochs.\n"
             print_and_save(train_log_path, data_str)
             break
 

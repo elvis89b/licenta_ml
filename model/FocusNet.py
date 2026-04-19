@@ -6,18 +6,28 @@ from .layers import BasicConv2d, DeformableConv2d, eca_layer
 from .pvtv2 import pvt_v2_b4
 
 
-def DiceBCELoss(inputs, targets, smooth=1):
-    inputs = torch.sigmoid(inputs)
+class WeightedDiceBCELoss(nn.Module):
+    def __init__(self, smooth=1.0):
+        super().__init__()
+        self.smooth = smooth
 
-    inputs = inputs.view(-1)
-    targets = targets.view(-1)
+    def forward(self, logits, targets, pixel_weight=None):
+        if pixel_weight is None:
+            pixel_weight = torch.ones_like(targets)
 
-    intersection = (inputs * targets).sum()
-    dice_loss = 1 - (2. * intersection + smooth) / (inputs.sum() + targets.sum() + smooth)
-    BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
-    Dice_BCE = BCE + dice_loss
+        probs = torch.sigmoid(logits)
 
-    return Dice_BCE
+        bce = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        bce = (bce * pixel_weight).sum() / (pixel_weight.sum() + 1e-6)
+
+        dims = (1, 2, 3)
+        intersection = (pixel_weight * probs * targets).sum(dim=dims)
+        denom = (pixel_weight * probs).sum(dim=dims) + (pixel_weight * targets).sum(dim=dims)
+
+        dice = 1.0 - (2.0 * intersection + self.smooth) / (denom + self.smooth)
+        dice = dice.mean()
+
+        return bce + dice
 
 
 class _ASPPModuleDeformable(nn.Module):
@@ -69,7 +79,9 @@ class DEM(nn.Module):
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(0.5)
-        self.ret = lambda x, target: F.interpolate(x, size=target.shape[-2:], mode='bilinear', align_corners=False)
+        self.ret = lambda x, target: F.interpolate(
+            x, size=target.shape[-2:], mode='bilinear', align_corners=False
+        )
 
     def forward(self, x):
         x_1, x_2, x_3, x_4 = torch.split(x, self.in_channels // 4, dim=1)
@@ -208,17 +220,45 @@ class FocusNet(nn.Module):
         self.attention = FocusAttention(channel, channel)
 
         self.res = lambda x, size: F.interpolate(x, size=size, mode='bilinear', align_corners=False)
-        self.loss_fn = DiceBCELoss
+        self.loss_fn = WeightedDiceBCELoss()
 
-        self.final_loss_weight = 0.5
+        # deep supervision weights
+        self.loss_w1 = 0.50
+        self.loss_w2 = 0.50
+        self.loss_w3 = 0.75
+        self.loss_w4 = 0.75
+        self.final_loss_weight = 1.00
         self.consistency_weight = 0.15
+
+        # adaptive edge curriculum
+        self.band_loss_weight_max = 0.35
+        self.edge_align_weight_max = 0.15
+        self.edge_refine_scale = 0.35
+        self.training_progress = 0.0
 
         self.band_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
+            nn.ReLU(inplace=True),
             BasicConv2d(channel, channel, 3, padding=1),
+            nn.ReLU(inplace=True),
             nn.Conv2d(channel, 1, kernel_size=1)
         )
-        self.band_loss_weight = 0.25
+
+        self.edge_gate = nn.Sequential(
+            nn.Conv2d(1, channel, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(channel),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel, 1, kernel_size=1),
+            nn.Sigmoid()
+        )
+
+    def set_epoch(self, epoch, total_epochs):
+        self.training_progress = float(epoch + 1) / float(max(total_epochs, 1))
+
+    def _curriculum_ramp(self, start=0.15, end=0.60):
+        t = (self.training_progress - start) / max(end - start, 1e-6)
+        t = max(0.0, min(1.0, t))
+        return t
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
@@ -228,15 +268,25 @@ class FocusNet(nn.Module):
         loss = torch.abs(p1 - p2) * confidence
         return loss.mean()
 
-    def make_band_target(self, mask, kernel_size=7):
+    def make_band_target_single(self, mask, kernel_size=7):
         pad = kernel_size // 2
-
         dilated = F.max_pool2d(mask, kernel_size=kernel_size, stride=1, padding=pad)
         eroded = -F.max_pool2d(-mask, kernel_size=kernel_size, stride=1, padding=pad)
-
         band = dilated - eroded
         band = torch.clamp(band, 0.0, 1.0)
         return band
+
+    def make_band_target(self, mask, kernel_sizes=(3, 7, 11)):
+        bands = [self.make_band_target_single(mask, k) for k in kernel_sizes]
+        band = sum(bands) / float(len(bands))
+        return torch.clamp(band, 0.0, 1.0)
+
+    def normalize_uncertainty(self, u):
+        u = u.detach()
+        u_min = u.amin(dim=(2, 3), keepdim=True)
+        u_max = u.amax(dim=(2, 3), keepdim=True)
+        u = (u - u_min) / (u_max - u_min + 1e-6)
+        return torch.clamp(u, 0.0, 1.0)
 
     def forward(self, sample):
         x = sample['images']
@@ -275,26 +325,47 @@ class FocusNet(nn.Module):
         band_pred = self.band_head(band_feat)
         band_pred_up = self.res(band_pred, base_size)
 
+        uncertainty_full = self.res(coarse_uncertainty, base_size)
+        uncertainty_full = self.normalize_uncertainty(uncertainty_full)
+
+        edge_gate = self.edge_gate(uncertainty_full)
+        out_refined = out + self.edge_refine_scale * band_pred_up * edge_gate
+
+        # loss maps
+        edge_pixel_weight = 1.0 + 2.0 * uncertainty_full
+        band_target = self.make_band_target(y, kernel_sizes=(3, 7, 11))
+
+        # main losses
         loss1 = self.loss_fn(out1, y)
         loss2 = self.loss_fn(out2, y)
         loss3 = self.loss_fn(out3, y)
         loss4 = self.loss_fn(out4, y)
-        loss_final = self.loss_fn(out, y)
+        loss_final = self.loss_fn(out_refined, y)
 
-        uncertainty_full = self.res(coarse_uncertainty, base_size)
         loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
 
-        band_target = self.make_band_target(y, kernel_size=7)
-        loss_band = self.loss_fn(band_pred_up, band_target)
+        # edge losses
+        loss_band = self.loss_fn(band_pred_up, band_target, pixel_weight=edge_pixel_weight)
+
+        pred_boundary = self.make_band_target(torch.sigmoid(out_refined), kernel_sizes=(3, 7, 11))
+        loss_edge_align = F.l1_loss(pred_boundary * edge_pixel_weight, band_target * edge_pixel_weight)
+
+        ramp = self._curriculum_ramp()
+        band_loss_weight = self.band_loss_weight_max * ramp
+        edge_align_weight = self.edge_align_weight_max * ramp
 
         loss = (
-            loss1 + loss2 + loss3 + loss4
+            self.loss_w1 * loss1
+            + self.loss_w2 * loss2
+            + self.loss_w3 * loss3
+            + self.loss_w4 * loss4
             + self.final_loss_weight * loss_final
             + self.consistency_weight * loss_consistency
-            + self.band_loss_weight * loss_band
+            + band_loss_weight * loss_band
+            + edge_align_weight * loss_edge_align
         )
 
         return {
-            'prediction': out,
+            'prediction': out_refined,
             'loss': loss
         }

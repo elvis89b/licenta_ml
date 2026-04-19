@@ -74,6 +74,14 @@ Precision: 0.8742 (vs Paper: +0.0338, +4.02%)
 Accuracy: 0.9885 (vs Paper: -0.0002, -0.02%)
 F2: 0.8146 (vs Paper: -0.0198, -2.37%)
 
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.7539 (vs Paper: +0.0079, +1.06%)
+mDSC/F1: 0.8296 (vs Paper: +0.0049, +0.59%)
+Recall: 0.8660 (vs Paper: +0.0188, +2.22%)
+Precision: 0.8431 (vs Paper: +0.0027, +0.32%)
+Accuracy: 0.9852 (vs Paper: -0.0035, -0.35%)
+F2: 0.8391 (vs Paper: +0.0047, +0.56%)
+
 FICE
 
 Paper
@@ -148,6 +156,13 @@ Precision: 0.9061 (vs Paper: -0.0024, -0.26%)
 Accuracy: 0.9878 (vs Paper: -0.0036, -0.36%)
 F2: 0.8475 (vs Paper: -0.0331, -3.76%)
 
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.8155 (vs Paper: -0.0098, -1.19%)
+mDSC/F1: 0.8764 (vs Paper: -0.0082, -0.93%)
+Recall: 0.8860 (vs Paper: +0.0058, +0.66%)
+Precision: 0.8954 (vs Paper: -0.0131, -1.44%)
+Accuracy: 0.9906 (vs Paper: -0.0008, -0.08%)
+F2: 0.8801 (vs Paper: -0.0005, -0.06%)
 
 LCI
 
@@ -216,12 +231,20 @@ Accuracy: 0.9969 (vs Paper: +0.0028, +0.28%)
 F2: 0.9643 (vs Paper: +0.0351, +3.78%)
 
 DGFR + Band Head + LAB Color Transfer Augmentation
-mIoU/Jaccard: 0.7399 (vs Paper: -0.0068, -0.91%)
-mDSC/F1: 0.8180 (vs Paper: -0.0029, -0.35%)
-Recall: 0.8327 (vs Paper: +0.0012, +0.14%)
-Precision: 0.8543 (vs Paper: -0.0043, -0.50%)
-Accuracy: 0.9728 (vs Paper: -0.0019, -0.19%)
-F2: 0.8228 (vs Paper: -0.0013, -0.16%)
+mIoU/Jaccard: 0.7399 (vs Paper: -0.1214, -14.10%)
+mDSC/F1: 0.8180 (vs Paper: -0.1024, -11.13%)
+Recall: 0.8327 (vs Paper: -0.1051, -11.21%)
+Precision: 0.8543 (vs Paper: -0.0639, -6.96%)
+Accuracy: 0.9728 (vs Paper: -0.0213, -2.14%)
+F2: 0.8228 (vs Paper: -0.1064, -11.45%)
+
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.8678 (vs Paper: +0.0065, +0.75%)
+mDSC/F1: 0.9244 (vs Paper: +0.0040, +0.43%)
+Recall: 0.9371 (vs Paper: -0.0007, -0.07%)
+Precision: 0.9250 (vs Paper: +0.0068, +0.74%)
+Accuracy: 0.9949 (vs Paper: +0.0008, +0.08%)
+F2: 0.9307 (vs Paper: +0.0015, +0.16%)
 
 NBI
 
@@ -297,6 +320,14 @@ Precision: 0.8543 (vs Paper: -0.0043, -0.50%)
 Accuracy: 0.9728 (vs Paper: -0.0019, -0.19%)
 F2: 0.8228 (vs Paper: -0.0013, -0.16%)
 
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.7557 (vs Paper: +0.0090, +1.21%)
+mDSC/F1: 0.8311 (vs Paper: +0.0102, +1.24%)
+Recall: 0.8429 (vs Paper: +0.0114, +1.37%)
+Precision: 0.8516 (vs Paper: -0.0070, -0.82%)
+Accuracy: 0.9733 (vs Paper: -0.0014, -0.14%)
+F2: 0.8342 (vs Paper: +0.0101, +1.23%)
+
 WLI
 
 Paper
@@ -370,3 +401,11 @@ Recall: 0.9320 (vs Paper: +0.0002, +0.02%)
 Precision: 0.9478 (vs Paper: +0.0001, +0.01%)
 Accuracy: 0.9851 (vs Paper: -0.0007, -0.07%)
 F2: 0.9311 (vs Paper: -0.0003, -0.03%)
+
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.8838 (vs Paper: -0.0024, -0.27%)
+mDSC/F1: 0.9332 (vs Paper: -0.0010, -0.11%)
+Recall: 0.9320 (vs Paper: +0.0002, +0.02%)
+Precision: 0.9463 (vs Paper: -0.0014, -0.15%)
+Accuracy: 0.9852 (vs Paper: -0.0006, -0.06%)
+F2: 0.9307 (vs Paper: -0.0007, -0.08%)

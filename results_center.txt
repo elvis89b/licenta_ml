@@ -66,6 +66,22 @@ Precision: 0.9460 (vs Paper: +0.0054, +0.57%)
 Accuracy: 0.9855 (vs Paper: +0.0047, +0.48%)
 F2: 0.9269 (vs Paper: +0.0053, +0.58%)
 
+DGFR + Band Head + LAB Color Transfer
+mIoU/Jaccard: 0.8746 (vs Paper: +0.0034, +0.39%)
+mDSC/F1: 0.9282 (vs Paper: +0.0052, +0.56%)
+Recall: 0.9328 (vs Paper: +0.0089, +0.96%)
+Precision: 0.9354 (vs Paper: -0.0052, -0.55%)
+Accuracy: 0.9845 (vs Paper: +0.0037, +0.38%)
+F2: 0.9293 (vs Paper: +0.0077, +0.84%)
+
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.8643 (vs Paper: -0.0069, -0.79%)
+mDSC/F1: 0.9190 (vs Paper: -0.0040, -0.43%)
+Recall: 0.9257 (vs Paper: +0.0018, +0.19%)
+Precision: 0.9291 (vs Paper: -0.0115, -1.22%)
+Accuracy: 0.9811 (vs Paper: +0.0003, +0.03%)
+F2: 0.9207 (vs Paper: -0.0009, -0.10%)
+
 BKAI
 
 Paper
@@ -131,6 +147,22 @@ Recall: 0.9280 (vs Paper: -0.0034, -0.37%)
 Precision: 0.9127 (vs Paper: -0.0010, -0.11%)
 Accuracy: 0.9919 (vs Paper: -0.0002, -0.02%)
 F2: 0.9172 (vs Paper: -0.0029, -0.32%)
+
+DGFR + Band Head + LAB Color Transfer
+mIoU/Jaccard: 0.8556 (vs Paper: -0.0058, -0.67%)
+mDSC/F1: 0.9100 (vs Paper: -0.0027, -0.30%)
+Recall: 0.9393 (vs Paper: +0.0079, +0.85%)
+Precision: 0.9024 (vs Paper: -0.0113, -1.24%)
+Accuracy: 0.9919 (vs Paper: -0.0002, -0.02%)
+F2: 0.9238 (vs Paper: +0.0037, +0.40%)
+
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.8616 (vs Paper: +0.0002, +0.02%)
+mDSC/F1: 0.9144 (vs Paper: +0.0017, +0.19%)
+Recall: 0.9387 (vs Paper: +0.0073, +0.78%)
+Precision: 0.9079 (vs Paper: -0.0058, -0.63%)
+Accuracy: 0.9921 (vs Paper: +0.0000, +0.00%)
+F2: 0.9259 (vs Paper: +0.0058, +0.63%)
 
 Karolinska
 
@@ -205,3 +237,19 @@ Recall: 0.9463 (vs Paper: +0.0052, +0.55%)
 Precision: 0.9585 (vs Paper: -0.0016, -0.17%)
 Accuracy: 0.9914 (vs Paper: +0.0015, +0.15%)
 F2: 0.9474 (vs Paper: +0.0049, +0.52%)
+
+DGFR + Band Head + LAB Color Transfer
+mIoU/Jaccard: 0.9036 (vs Paper: -0.0005, -0.06%)
+mDSC/F1: 0.9469 (vs Paper: +0.0005, +0.05%)
+Recall: 0.9461 (vs Paper: +0.0050, +0.53%)
+Precision: 0.9539 (vs Paper: -0.0062, -0.65%)
+Accuracy: 0.9906 (vs Paper: +0.0007, +0.07%)
+F2: 0.9458 (vs Paper: +0.0033, +0.35%)
+
+DGFR + Band Head + Adaptive Uncertainty Multi-Scale Edge Refinement
+mIoU/Jaccard: 0.9036 (vs Paper: -0.0005, -0.06%)
+mDSC/F1: 0.9475 (vs Paper: +0.0011, +0.12%)
+Recall: 0.9510 (vs Paper: +0.0099, +1.05%)
+Precision: 0.9501 (vs Paper: -0.0100, -1.04%)
+Accuracy: 0.9904 (vs Paper: +0.0005, +0.05%)
+F2: 0.9488 (vs Paper: +0.0063, +0.67%)

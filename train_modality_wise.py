@@ -173,28 +173,8 @@ def load_polypdb_wli_data(path):
     return [train_samples, valid_samples, test_samples]
 
 
-def lab_color_transfer(source, reference):
-    source_lab = cv2.cvtColor(source, cv2.COLOR_BGR2LAB).astype(np.float32)
-    ref_lab = cv2.cvtColor(reference, cv2.COLOR_BGR2LAB).astype(np.float32)
-
-    src_mean, src_std = cv2.meanStdDev(source_lab)
-    ref_mean, ref_std = cv2.meanStdDev(ref_lab)
-
-    src_mean = src_mean.reshape(1, 1, 3)
-    src_std = src_std.reshape(1, 1, 3)
-    ref_mean = ref_mean.reshape(1, 1, 3)
-    ref_std = ref_std.reshape(1, 1, 3)
-
-    transferred = (source_lab - src_mean) * (ref_std / (src_std + 1e-6)) + ref_mean
-    transferred = np.clip(transferred, 0, 255).astype(np.uint8)
-    transferred = cv2.cvtColor(transferred, cv2.COLOR_LAB2BGR)
-
-    return transferred
-
-
 class DATASET(Dataset):
-    def __init__(self, images_path, masks_path, size, transform=None,
-                 use_color_transfer=False, color_transfer_p=0.0):
+    def __init__(self, images_path, masks_path, size, transform=None):
         super().__init__()
 
         self.images_path = images_path
@@ -202,20 +182,10 @@ class DATASET(Dataset):
         self.transform = transform
         self.n_samples = len(images_path)
         self.size = size
-        self.use_color_transfer = use_color_transfer
-        self.color_transfer_p = color_transfer_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.images_path[index], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.masks_path[index], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_color_transfer and random.random() < self.color_transfer_p and self.n_samples > 1:
-            ref_index = random.randrange(self.n_samples)
-            while ref_index == index and self.n_samples > 1:
-                ref_index = random.randrange(self.n_samples)
-            ref_image = cv2.imread(self.images_path[ref_index], cv2.IMREAD_COLOR)
-            if ref_image is not None:
-                image = lab_color_transfer(image, ref_image)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -237,28 +207,17 @@ class DATASET(Dataset):
 
 
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None,
-                 use_color_transfer=False, color_transfer_p=0.0):
+    def __init__(self, samples_path, size, transform=None):
         super().__init__()
 
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
-        self.use_color_transfer = use_color_transfer
-        self.color_transfer_p = color_transfer_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.samples_path[index][0], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.samples_path[index][1], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_color_transfer and random.random() < self.color_transfer_p and self.n_samples > 1:
-            ref_index = random.randrange(self.n_samples)
-            while ref_index == index and self.n_samples > 1:
-                ref_index = random.randrange(self.n_samples)
-            ref_image = cv2.imread(self.samples_path[ref_index][0], cv2.IMREAD_COLOR)
-            if ref_image is not None:
-                image = lab_color_transfer(image, ref_image)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -383,8 +342,8 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_AdaptiveUncertaintyMultiScaleEdgeRefinement_modality"
-    variant_name = "DGFR+BandHead+AdaptiveUncertaintyMultiScaleEdgeRefinement"
+    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedGrayBoundaryConsistency_modality"
+    variant_name = "DGFR+BandHead+UncertaintyGatedGrayBoundaryConsistency"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -408,9 +367,6 @@ if __name__ == "__main__":
     checkpoint_path = f"files/modality_wise/{model_name}/checkpoint.pth"
     path = "data/PolypDB/PolypDB_modality_wise/WLI"
 
-    use_color_transfer = False
-    color_transfer_p = 0.0
-
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
@@ -424,9 +380,7 @@ if __name__ == "__main__":
             "lr": lr,
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
-            "train_path": path,
-            "use_color_transfer": use_color_transfer,
-            "color_transfer_p": color_transfer_p
+            "train_path": path
         }
     )
 
@@ -434,8 +388,6 @@ if __name__ == "__main__":
     data_str += f"Variant: {variant_name}\n"
     data_str += f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nWeight Decay: {weight_decay}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
-    data_str += f"Use LAB Color Transfer: {use_color_transfer}\n"
-    data_str += f"Color Transfer p: {color_transfer_p}\n"
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
@@ -454,16 +406,12 @@ if __name__ == "__main__":
     train_dataset = PolypDB_DATASET(
         train_samples,
         size,
-        transform=transform,
-        use_color_transfer=use_color_transfer,
-        color_transfer_p=color_transfer_p
+        transform=transform
     )
     valid_dataset = PolypDB_DATASET(
         valid_samples,
         size,
-        transform=None,
-        use_color_transfer=False,
-        color_transfer_p=0.0
+        transform=None
     )
 
     train_loader = DataLoader(
@@ -487,7 +435,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, verbose=True)
     loss_fn = DiceBCELoss()
-    loss_name = "BCE Dice Loss (model uses internal adaptive loss)"
+    loss_name = "BCE Dice Loss (model uses internal gray-boundary loss)"
 
     data_str = f"Optimizer: AdamW\nLoss: {loss_name}\n"
     print_and_save(train_log_path, data_str)

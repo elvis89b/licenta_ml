@@ -166,74 +166,18 @@ def load_polypdb_wli_data(path):
     return [train_samples, valid_samples, test_samples]
 
 
-def global_intensity_nonlinear(image, p=0.5):
-    if random.random() > p:
-        return image
-
-    image = image.astype(np.float32) / 255.0
-
-    gamma = random.uniform(0.7, 1.5)
-    gain = random.uniform(0.85, 1.15)
-
-    image = gain * np.power(np.clip(image, 0.0, 1.0), gamma)
-    image = np.clip(image, 0.0, 1.0)
-
-    image = (image * 255.0).astype(np.uint8)
-    return image
-
-
-def lab_color_transfer(image, p=0.5):
-    if random.random() > p:
-        return image
-
-    img = image.astype(np.uint8)
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
-
-    l, a, b = cv2.split(lab)
-
-    l_scale = random.uniform(0.90, 1.10)
-    l_shift = random.uniform(-8.0, 8.0)
-
-    a_scale = random.uniform(0.85, 1.15)
-    a_shift = random.uniform(-12.0, 12.0)
-
-    b_scale = random.uniform(0.85, 1.15)
-    b_shift = random.uniform(-12.0, 12.0)
-
-    l = np.clip(l * l_scale + l_shift, 0, 255)
-    a = np.clip((a - 128.0) * a_scale + 128.0 + a_shift, 0, 255)
-    b = np.clip((b - 128.0) * b_scale + 128.0 + b_shift, 0, 255)
-
-    lab_aug = cv2.merge([l, a, b]).astype(np.uint8)
-    image_aug = cv2.cvtColor(lab_aug, cv2.COLOR_LAB2BGR)
-
-    return image_aug
-
-
 class DATASET(Dataset):
-    def __init__(self, images_path, masks_path, size, transform=None,
-                 use_gin=False, gin_p=0.0,
-                 use_lab=False, lab_p=0.0):
+    def __init__(self, images_path, masks_path, size, transform=None):
         super().__init__()
         self.images_path = images_path
         self.masks_path = masks_path
         self.transform = transform
         self.n_samples = len(images_path)
         self.size = size
-        self.use_gin = use_gin
-        self.gin_p = gin_p
-        self.use_lab = use_lab
-        self.lab_p = lab_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.images_path[index], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.masks_path[index], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_gin:
-            image = global_intensity_nonlinear(image, p=self.gin_p)
-
-        if self.use_lab:
-            image = lab_color_transfer(image, p=self.lab_p)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -255,28 +199,16 @@ class DATASET(Dataset):
 
 
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None,
-                 use_gin=False, gin_p=0.0,
-                 use_lab=False, lab_p=0.0):
+    def __init__(self, samples_path, size, transform=None):
         super().__init__()
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
-        self.use_gin = use_gin
-        self.gin_p = gin_p
-        self.use_lab = use_lab
-        self.lab_p = lab_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.samples_path[index][0], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.samples_path[index][1], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_gin:
-            image = global_intensity_nonlinear(image, p=self.gin_p)
-
-        if self.use_lab:
-            image = lab_color_transfer(image, p=self.lab_p)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -394,8 +326,8 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_AdaptiveUncertaintyMultiScaleEdgeRefinement_center"
-    variant_name = "DGFR+BandHead+AdaptiveUncertaintyMultiScaleEdgeRefinement"
+    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedGrayBoundaryConsistency_center"
+    variant_name = "DGFR+BandHead+UncertaintyGatedGrayBoundaryConsistency"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -419,11 +351,6 @@ if __name__ == "__main__":
     checkpoint_path = f"files/center_wise/{model_name}/checkpoint.pth"
     path = "data/PolypDB/PolypDB_center_wise/Simula/WLI"
 
-    use_gin = False
-    gin_p = 0.0
-    use_lab = False
-    lab_p = 0.0
-
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
@@ -437,11 +364,7 @@ if __name__ == "__main__":
             "lr": lr,
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
-            "train_path": path,
-            "use_gin": use_gin,
-            "gin_p": gin_p,
-            "use_lab": use_lab,
-            "lab_p": lab_p
+            "train_path": path
         }
     )
 
@@ -449,8 +372,6 @@ if __name__ == "__main__":
     data_str += f"Variant: {variant_name}\n"
     data_str += f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nWeight Decay: {weight_decay}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
-    data_str += f"Use GIN: {use_gin}\nGIN p: {gin_p}\n"
-    data_str += f"Use LAB: {use_lab}\nLAB p: {lab_p}\n"
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
@@ -468,16 +389,12 @@ if __name__ == "__main__":
 
     train_dataset = PolypDB_DATASET(
         train_samples, size,
-        transform=transform,
-        use_gin=use_gin, gin_p=gin_p,
-        use_lab=use_lab, lab_p=lab_p
+        transform=transform
     )
 
     valid_dataset = PolypDB_DATASET(
         valid_samples, size,
-        transform=None,
-        use_gin=False, gin_p=0.0,
-        use_lab=False, lab_p=0.0
+        transform=None
     )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
@@ -490,7 +407,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, verbose=True)
     loss_fn = DiceBCELoss()
-    loss_name = "BCE Dice Loss (model uses internal adaptive loss)"
+    loss_name = "BCE Dice Loss (model uses internal gray-boundary loss)"
 
     data_str = f"Optimizer: AdamW\nLoss: {loss_name}\n"
     print_and_save(train_log_path, data_str)

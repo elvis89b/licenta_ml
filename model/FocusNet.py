@@ -21,7 +21,7 @@ class DiceBCELoss(nn.Module):
         dice_loss = 1.0 - (2.0 * intersection + self.smooth) / (
             inputs.sum() + targets.sum() + self.smooth
         )
-        bce = F.binary_cross_entropy(inputs, targets, reduction='mean')
+        bce = F.binary_cross_entropy(inputs, targets, reduction="mean")
         return bce + dice_loss
 
 
@@ -229,7 +229,6 @@ class FocusNet(nn.Module):
         self.Translayer_pvt3 = BasicConv2d(320, channel, 1)
         self.Translayer_pvt4 = BasicConv2d(512, channel, 1)
 
-        self.translayer_context = BasicConv2d(128, channel, 1)
         self.context = DEM(64, channel)
 
         self.decoder1 = CIDM_M(channel)
@@ -237,18 +236,16 @@ class FocusNet(nn.Module):
 
         self.attention = FocusAttention(channel, channel)
 
-        self.res = lambda x, size: F.interpolate(x, size=size, mode='bilinear', align_corners=False)
-
         self.seg_loss = DiceBCELoss()
         self.weighted_seg_loss = WeightedDiceBCELoss()
 
-        self.final_loss_weight = 0.5
+        self.loss_w1 = 0.50
+        self.loss_w2 = 0.50
+        self.loss_w3 = 0.75
+        self.loss_w4 = 0.75
+        self.final_loss_weight = 1.00
         self.consistency_weight = 0.15
-        self.band_loss_weight = 0.25
-        self.gray_boundary_weight_max = 0.12
-        self.pred_boundary_align_weight_max = 0.08
-
-        self.training_progress = 0.0
+        self.band_loss_weight = 0.30
 
         self.band_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
@@ -258,34 +255,14 @@ class FocusNet(nn.Module):
             nn.Conv2d(channel, 1, kernel_size=1)
         )
 
-        sobel_x = torch.tensor(
-            [[-1., 0., 1.],
-             [-2., 0., 2.],
-             [-1., 0., 1.]], dtype=torch.float32
-        ).view(1, 1, 3, 3)
-        sobel_y = torch.tensor(
-            [[-1., -2., -1.],
-             [0.,  0.,  0.],
-             [1.,  2.,  1.]], dtype=torch.float32
-        ).view(1, 1, 3, 3)
-
-        self.register_buffer("sobel_x", sobel_x)
-        self.register_buffer("sobel_y", sobel_y)
-
-    def set_epoch(self, epoch, total_epochs):
-        self.training_progress = float(epoch + 1) / float(max(total_epochs, 1))
-
-    def rampup(self, start=0.10, end=0.40):
-        t = (self.training_progress - start) / max(end - start, 1e-6)
-        return max(0.0, min(1.0, t))
+    def res(self, x, size):
+        return F.interpolate(x, size=size, mode='bilinear', align_corners=False)
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
         p2 = torch.sigmoid(logit2)
-
         confidence = torch.clamp(1.0 - uncertainty_map, min=0.0, max=1.0)
-        loss = torch.abs(p1 - p2) * confidence
-        return loss.mean()
+        return (torch.abs(p1 - p2) * confidence).mean()
 
     def make_band_target(self, mask, kernel_size=7):
         pad = kernel_size // 2
@@ -294,31 +271,12 @@ class FocusNet(nn.Module):
         band = dilated - eroded
         return torch.clamp(band, 0.0, 1.0)
 
-    def normalize_map(self, x):
-        x_min = x.amin(dim=(2, 3), keepdim=True)
-        x_max = x.amax(dim=(2, 3), keepdim=True)
-        return (x - x_min) / (x_max - x_min + 1e-6)
-
-    def rgb_to_gray(self, x):
-        # input is BGR because cv2 loads BGR
-        b = x[:, 0:1]
-        g = x[:, 1:2]
-        r = x[:, 2:3]
-        gray = 0.114 * b + 0.587 * g + 0.299 * r
-        return gray
-
-    def sobel_edges(self, gray):
-        gx = F.conv2d(gray, self.sobel_x, padding=1)
-        gy = F.conv2d(gray, self.sobel_y, padding=1)
-        mag = torch.sqrt(gx * gx + gy * gy + 1e-6)
-        mag = self.normalize_map(mag)
-        return torch.clamp(mag, 0.0, 1.0)
-
-    def soft_gray_band_target(self, mask, gray_edge, kernel_size=7, gray_mix=0.15):
-        hard_band = self.make_band_target(mask, kernel_size=kernel_size)
-        local_gray = gray_edge * hard_band
-        target = (1.0 - gray_mix) * hard_band + gray_mix * local_gray
-        return torch.clamp(target, 0.0, 1.0)
+    def normalize_uncertainty(self, u):
+        u = u.detach()
+        u_min = u.amin(dim=(2, 3), keepdim=True)
+        u_max = u.amax(dim=(2, 3), keepdim=True)
+        u = (u - u_min) / (u_max - u_min + 1e-6)
+        return torch.clamp(u, 0.0, 1.0)
 
     def forward(self, sample):
         x = sample['images']
@@ -357,52 +315,29 @@ class FocusNet(nn.Module):
         band_pred = self.band_head(band_feat)
         band_pred_up = self.res(band_pred, base_size)
 
-        # Main segmentation losses
+        uncertainty_full = self.res(coarse_uncertainty, base_size)
+        uncertainty_full = self.normalize_uncertainty(uncertainty_full)
+
+        band_target = self.make_band_target(y, kernel_size=7)
+        pixel_weight = 1.0 + 1.5 * uncertainty_full + 0.5 * band_target
+
         loss1 = self.seg_loss(out1, y)
         loss2 = self.seg_loss(out2, y)
         loss3 = self.seg_loss(out3, y)
         loss4 = self.seg_loss(out4, y)
         loss_final = self.seg_loss(out, y)
 
-        uncertainty_full = self.res(coarse_uncertainty, base_size)
-        uncertainty_full = self.normalize_map(uncertainty_full.detach())
-
         loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
-
-        # Boundary supervision
-        gray = self.rgb_to_gray(x)
-        gray_edge = self.sobel_edges(gray)
-
-        band_target = self.make_band_target(y, kernel_size=7)
-        soft_band_target = self.soft_gray_band_target(y, gray_edge, kernel_size=7, gray_mix=0.15)
-
-        pixel_weight = 1.0 + uncertainty_full + 0.5 * band_target
-        loss_band = self.weighted_seg_loss(band_pred_up, soft_band_target, pixel_weight=pixel_weight)
-
-        pred_boundary = self.make_band_target(torch.sigmoid(out), kernel_size=7)
-        gray_local = gray_edge * band_target
-
-        ramp = self.rampup()
-        gray_boundary_weight = self.gray_boundary_weight_max * ramp
-        pred_boundary_align_weight = self.pred_boundary_align_weight_max * ramp
-
-        loss_gray_boundary = F.l1_loss(
-            torch.sigmoid(band_pred_up) * uncertainty_full,
-            gray_local * uncertainty_full
-        )
-
-        loss_pred_boundary_align = F.l1_loss(
-            pred_boundary * uncertainty_full,
-            band_target * uncertainty_full
-        )
+        loss_band = self.weighted_seg_loss(band_pred_up, band_target, pixel_weight=pixel_weight)
 
         loss = (
-            loss1 + loss2 + loss3 + loss4
+            self.loss_w1 * loss1
+            + self.loss_w2 * loss2
+            + self.loss_w3 * loss3
+            + self.loss_w4 * loss4
             + self.final_loss_weight * loss_final
             + self.consistency_weight * loss_consistency
             + self.band_loss_weight * loss_band
-            + gray_boundary_weight * loss_gray_boundary
-            + pred_boundary_align_weight * loss_pred_boundary_align
         )
 
         return {

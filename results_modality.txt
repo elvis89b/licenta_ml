@@ -82,6 +82,22 @@ Precision: 0.8431 (vs Paper: +0.0027, +0.32%)
 Accuracy: 0.9852 (vs Paper: -0.0035, -0.35%)
 F2: 0.8391 (vs Paper: +0.0047, +0.56%)
 
+DGFR + Band Head + Uncertainty-Gated Gray Boundary Consistency
+mIoU/Jaccard: 0.7157 (vs Paper: -0.0303, -4.06%)
+mDSC/F1: 0.7983 (vs Paper: -0.0264, -3.20%)
+Recall: 0.8110 (vs Paper: -0.0362, -4.27%)
+Precision: 0.8554 (vs Paper: +0.0150, +1.79%)
+Accuracy: 0.9802 (vs Paper: -0.0085, -0.86%)
+F2: 0.7943 (vs Paper: -0.0401, -4.81%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.7159 (vs Paper: -0.0301, -4.03%)
+mDSC/F1: 0.8008 (vs Paper: -0.0239, -2.90%)
+Recall: 0.8197 (vs Paper: -0.0275, -3.25%)
+Precision: 0.8589 (vs Paper: +0.0185, +2.20%)
+Accuracy: 0.9849 (vs Paper: -0.0038, -0.38%)
+F2: 0.7996 (vs Paper: -0.0348, -4.17%)
+
 FICE
 
 Paper
@@ -163,6 +179,22 @@ Recall: 0.8860 (vs Paper: +0.0058, +0.66%)
 Precision: 0.8954 (vs Paper: -0.0131, -1.44%)
 Accuracy: 0.9906 (vs Paper: -0.0008, -0.08%)
 F2: 0.8801 (vs Paper: -0.0005, -0.06%)
+
+DGFR + Band Head + Uncertainty-Gated Gray Boundary Consistency
+mIoU/Jaccard: 0.8288 (vs Paper: +0.0035, +0.42%)
+mDSC/F1: 0.8862 (vs Paper: +0.0016, +0.18%)
+Recall: 0.8813 (vs Paper: +0.0011, +0.12%)
+Precision: 0.9222 (vs Paper: +0.0137, +1.51%)
+Accuracy: 0.9922 (vs Paper: +0.0008, +0.08%)
+F2: 0.8817 (vs Paper: +0.0011, +0.12%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.7922 (vs Paper: -0.0331, -4.01%)
+mDSC/F1: 0.8524 (vs Paper: -0.0322, -3.64%)
+Recall: 0.8447 (vs Paper: -0.0355, -4.03%)
+Precision: 0.9050 (vs Paper: -0.0035, -0.39%)
+Accuracy: 0.9895 (vs Paper: -0.0019, -0.19%)
+F2: 0.8458 (vs Paper: -0.0348, -3.95%)
 
 LCI
 
@@ -246,6 +278,22 @@ Precision: 0.9250 (vs Paper: +0.0068, +0.74%)
 Accuracy: 0.9949 (vs Paper: +0.0008, +0.08%)
 F2: 0.9307 (vs Paper: +0.0015, +0.16%)
 
+DGFR + Band Head + Uncertainty-Gated Gray Boundary Consistency
+mIoU/Jaccard: 0.8406 (vs Paper: -0.0207, -2.40%)
+mDSC/F1: 0.9029 (vs Paper: -0.0175, -1.90%)
+Recall: 0.9158 (vs Paper: -0.0220, -2.35%)
+Precision: 0.9196 (vs Paper: +0.0014, +0.15%)
+Accuracy: 0.9944 (vs Paper: +0.0003, +0.03%)
+F2: 0.9085 (vs Paper: -0.0207, -2.23%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.8531 (vs Paper: -0.0082, -0.95%)
+mDSC/F1: 0.9156 (vs Paper: -0.0048, -0.52%)
+Recall: 0.9238 (vs Paper: -0.0140, -1.49%)
+Precision: 0.9236 (vs Paper: +0.0054, +0.59%)
+Accuracy: 0.9943 (vs Paper: +0.0002, +0.02%)
+F2: 0.9190 (vs Paper: -0.0102, -1.10%)
+
 NBI
 
 Paper
@@ -328,6 +376,22 @@ Precision: 0.8516 (vs Paper: -0.0070, -0.82%)
 Accuracy: 0.9733 (vs Paper: -0.0014, -0.14%)
 F2: 0.8342 (vs Paper: +0.0101, +1.23%)
 
+DGFR + Band Head + Uncertainty-Gated Gray Boundary Consistency
+mIoU/Jaccard: 0.7374 (vs Paper: -0.0093, -1.25%)
+mDSC/F1: 0.8116 (vs Paper: -0.0093, -1.13%)
+Recall: 0.8206 (vs Paper: -0.0109, -1.31%)
+Precision: 0.8581 (vs Paper: -0.0005, -0.06%)
+Accuracy: 0.9681 (vs Paper: -0.0066, -0.68%)
+F2: 0.8085 (vs Paper: -0.0156, -1.89%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.7221 (vs Paper: -0.0246, -3.29%)
+mDSC/F1: 0.8034 (vs Paper: -0.0175, -2.13%)
+Recall: 0.8356 (vs Paper: +0.0041, +0.49%)
+Precision: 0.8303 (vs Paper: -0.0283, -3.30%)
+Accuracy: 0.9698 (vs Paper: -0.0049, -0.50%)
+F2: 0.8136 (vs Paper: -0.0105, -1.27%)
+
 WLI
 
 Paper
@@ -409,3 +473,19 @@ Recall: 0.9320 (vs Paper: +0.0002, +0.02%)
 Precision: 0.9463 (vs Paper: -0.0014, -0.15%)
 Accuracy: 0.9852 (vs Paper: -0.0006, -0.06%)
 F2: 0.9307 (vs Paper: -0.0007, -0.08%)
+
+DGFR + Band Head + Uncertainty-Gated Gray Boundary Consistency
+mIoU/Jaccard: 0.8839 (vs Paper: -0.0023, -0.26%)
+mDSC/F1: 0.9320 (vs Paper: -0.0022, -0.24%)
+Recall: 0.9310 (vs Paper: -0.0008, -0.09%)
+Precision: 0.9451 (vs Paper: -0.0026, -0.27%)
+Accuracy: 0.9862 (vs Paper: +0.0004, +0.04%)
+F2: 0.9298 (vs Paper: -0.0016, -0.17%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.8759 (vs Paper: -0.0103, -1.16%)
+mDSC/F1: 0.9277 (vs Paper: -0.0065, -0.70%)
+Recall: 0.9271 (vs Paper: -0.0047, -0.50%)
+Precision: 0.9425 (vs Paper: -0.0052, -0.55%)
+Accuracy: 0.9850 (vs Paper: -0.0008, -0.08%)
+F2: 0.9256 (vs Paper: -0.0058, -0.62%)

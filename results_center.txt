@@ -90,6 +90,14 @@ Precision: 0.9398 (vs Paper: -0.0008, -0.09%)
 Accuracy: 0.9830 (vs Paper: +0.0022, +0.22%)
 F2: 0.9189 (vs Paper: -0.0027, -0.29%)
 
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.8725 (vs Paper: +0.0013, +0.15%)
+mDSC/F1: 0.9257 (vs Paper: +0.0027, +0.29%)
+Recall: 0.9246 (vs Paper: +0.0007, +0.08%)
+Precision: 0.9413 (vs Paper: +0.0007, +0.07%)
+Accuracy: 0.9814 (vs Paper: +0.0006, +0.06%)
+F2: 0.9235 (vs Paper: +0.0019, +0.21%)
+
 BKAI
 
 Paper
@@ -179,6 +187,14 @@ Recall: 0.9312 (vs Paper: -0.0002, -0.02%)
 Precision: 0.9181 (vs Paper: +0.0044, +0.48%)
 Accuracy: 0.9923 (vs Paper: +0.0002, +0.02%)
 F2: 0.9214 (vs Paper: +0.0013, +0.14%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.8641 (vs Paper: +0.0027, +0.31%)
+mDSC/F1: 0.9155 (vs Paper: +0.0028, +0.31%)
+Recall: 0.9353 (vs Paper: +0.0039, +0.42%)
+Precision: 0.9140 (vs Paper: +0.0003, +0.03%)
+Accuracy: 0.9925 (vs Paper: +0.0004, +0.04%)
+F2: 0.9240 (vs Paper: +0.0039, +0.42%)
 
 Karolinska
 
@@ -277,3 +293,11 @@ Recall: 0.9419 (vs Paper: +0.0008, +0.09%)
 Precision: 0.9669 (vs Paper: +0.0068, +0.71%)
 Accuracy: 0.9916 (vs Paper: +0.0017, +0.17%)
 F2: 0.9456 (vs Paper: +0.0031, +0.33%)
+
+DGFR + Band Head + Uncertainty-Gated Edge Loss + Edge Frequency Prior Mix
+mIoU/Jaccard: 0.9081 (vs Paper: +0.0040, +0.44%)
+mDSC/F1: 0.9500 (vs Paper: +0.0036, +0.38%)
+Recall: 0.9434 (vs Paper: +0.0023, +0.24%)
+Precision: 0.9625 (vs Paper: +0.0024, +0.25%)
+Accuracy: 0.9910 (vs Paper: +0.0011, +0.11%)
+F2: 0.9454 (vs Paper: +0.0029, +0.31%)

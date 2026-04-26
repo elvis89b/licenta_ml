@@ -1,5 +1,4 @@
 import os
-import random
 import time
 import datetime
 import numpy as np
@@ -15,24 +14,6 @@ from model.FocusNet import *
 from metrics import DiceBCELoss
 from sklearn.utils import shuffle
 from lib import *
-
-
-def load_names(path, file_path):
-    f = open(file_path, "r")
-    data = f.read().split("\n")[:-1]
-    images = [os.path.join(path, "images", name) + ".jpg" for name in data]
-    masks = [os.path.join(path, "masks", name) + ".jpg" for name in data]
-    return images, masks
-
-
-def load_kvasir_data(path):
-    train_names_path = f"{path}/train.txt"
-    valid_names_path = f"{path}/val.txt"
-
-    train_x, train_y = load_names(path, train_names_path)
-    valid_x, valid_y = load_names(path, valid_names_path)
-
-    return (train_x, train_y), (valid_x, valid_y)
 
 
 def load_test_data(path):
@@ -79,113 +60,17 @@ def load_polypdb_wli_data(path):
     return [train_samples, valid_samples, test_samples]
 
 
-def make_band_mask(mask, kernel_size=9):
-    if mask.ndim == 3:
-        mask = mask[:, :, 0]
-    mask = (mask > 127).astype(np.uint8) * 255
-    k = np.ones((kernel_size, kernel_size), np.uint8)
-    dil = cv2.dilate(mask, k, iterations=1)
-    ero = cv2.erode(mask, k, iterations=1)
-    band = cv2.subtract(dil, ero)
-    return (band > 0).astype(np.float32)
-
-
-def radial_annulus_mask(h, w, r_low_ratio=0.05, r_high_ratio=0.30):
-    cy, cx = h // 2, w // 2
-    yy, xx = np.ogrid[:h, :w]
-    rr = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
-    rmax = np.sqrt(cy ** 2 + cx ** 2)
-    r_low = r_low_ratio * rmax
-    r_high = r_high_ratio * rmax
-    mask = ((rr >= r_low) & (rr <= r_high)).astype(np.float32)
-    return np.fft.ifftshift(mask)
-
-
-def fft_amplitude_mix_channel(src, ref, alpha, annulus):
-    if ref.shape != src.shape:
-        ref = cv2.resize(ref, (src.shape[1], src.shape[0]), interpolation=cv2.INTER_LINEAR)
-
-    if annulus.shape != src.shape:
-        annulus = cv2.resize(annulus, (src.shape[1], src.shape[0]), interpolation=cv2.INTER_LINEAR)
-
-    src_fft = np.fft.fft2(src)
-    ref_fft = np.fft.fft2(ref)
-
-    src_amp = np.abs(src_fft)
-    ref_amp = np.abs(ref_fft)
-    src_phase = np.angle(src_fft)
-
-    mixed_amp = src_amp * (1.0 - annulus) + ((1.0 - alpha) * src_amp + alpha * ref_amp) * annulus
-    mixed_fft = mixed_amp * np.exp(1j * src_phase)
-    mixed = np.fft.ifft2(mixed_fft).real
-    return mixed
-
-def edge_frequency_prior_mix(image, mask, ref_image, ref_mask, alpha_range=(0.10, 0.25), kernel_size=9):
-    h, w = image.shape[:2]
-
-    # resize reference to source size so FFT tensors match
-    ref_image = cv2.resize(ref_image, (w, h), interpolation=cv2.INTER_LINEAR)
-    ref_mask = cv2.resize(ref_mask, (w, h), interpolation=cv2.INTER_NEAREST)
-
-    band_src = make_band_mask(mask, kernel_size=kernel_size)
-    band_ref = make_band_mask(ref_mask, kernel_size=kernel_size)
-
-    if band_src.sum() < 10 or band_ref.sum() < 10:
-        return image
-
-    band_soft = cv2.GaussianBlur(band_src.astype(np.float32), (0, 0), sigmaX=2.0)
-    band_soft = np.clip(band_soft, 0.0, 1.0)[:, :, None]
-
-    src_edge = image.astype(np.float32) * band_src[:, :, None]
-    ref_edge = ref_image.astype(np.float32) * band_ref[:, :, None]
-
-    annulus = radial_annulus_mask(
-        h, w,
-        r_low_ratio=random.uniform(0.03, 0.08),
-        r_high_ratio=random.uniform(0.18, 0.35)
-    )
-    alpha = random.uniform(*alpha_range)
-
-    mixed = np.zeros_like(src_edge, dtype=np.float32)
-    for c in range(3):
-        mixed[:, :, c] = fft_amplitude_mix_channel(
-            src_edge[:, :, c],
-            ref_edge[:, :, c],
-            alpha,
-            annulus
-        )
-
-    mixed = np.clip(mixed, 0, 255)
-    out = image.astype(np.float32) * (1.0 - band_soft) + mixed * band_soft
-    out = np.clip(out, 0, 255).astype(np.uint8)
-    return out
-
-
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None,
-                 use_edge_freq_prior=True, edge_freq_prior_p=0.30):
+    def __init__(self, samples_path, size, transform=None):
         super().__init__()
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
-        self.use_edge_freq_prior = use_edge_freq_prior
-        self.edge_freq_prior_p = edge_freq_prior_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.samples_path[index][0], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.samples_path[index][1], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_edge_freq_prior and random.random() < self.edge_freq_prior_p and self.n_samples > 1:
-            ref_index = random.randrange(self.n_samples)
-            while ref_index == index and self.n_samples > 1:
-                ref_index = random.randrange(self.n_samples)
-
-            ref_image = cv2.imread(self.samples_path[ref_index][0], cv2.IMREAD_COLOR)
-            ref_mask = cv2.imread(self.samples_path[ref_index][1], cv2.IMREAD_GRAYSCALE)
-
-            if ref_image is not None and ref_mask is not None:
-                image = edge_frequency_prior_mix(image, mask, ref_image, ref_mask)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -230,8 +115,8 @@ def train(model, loader, optimizer, loss_fn, device):
         epoch_loss += loss.item()
 
         batch_jac, batch_f1, batch_recall, batch_precision = [], [], [], []
-
         y_pred = torch.sigmoid(y_pred)
+
         for yt, yp in zip(y, y_pred):
             score = calculate_metrics(yt, yp)
             batch_jac.append(score[0])
@@ -275,8 +160,8 @@ def evaluate(model, loader, loss_fn, device):
             epoch_loss += loss.item()
 
             batch_jac, batch_f1, batch_recall, batch_precision = [], [], [], []
-
             y_pred = torch.sigmoid(y_pred)
+
             for yt, yp in zip(y, y_pred):
                 score = calculate_metrics(yt, yp)
                 batch_jac.append(score[0])
@@ -303,8 +188,8 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedEdgeLoss_EdgeFrequencyPriorMix_center"
-    variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss+EdgeFrequencyPriorMix"
+    experiment_name = "FocusNet_DGFR_BandHead_UGEL_LearnableSpectralBottleneck_center"
+    variant_name = "DGFR+BandHead+UGEL+LearnableSpectralBottleneck"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -328,9 +213,6 @@ if __name__ == "__main__":
     checkpoint_path = f"files/center_wise/{model_name}/checkpoint.pth"
     path = "data/PolypDB/PolypDB_center_wise/Simula/WLI"
 
-    use_edge_freq_prior = True
-    edge_freq_prior_p = 0.30
-
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
@@ -344,9 +226,7 @@ if __name__ == "__main__":
             "lr": lr,
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
-            "train_path": path,
-            "use_edge_freq_prior": use_edge_freq_prior,
-            "edge_freq_prior_p": edge_freq_prior_p
+            "train_path": path
         }
     )
 
@@ -354,8 +234,6 @@ if __name__ == "__main__":
     data_str += f"Variant: {variant_name}\n"
     data_str += f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nWeight Decay: {weight_decay}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
-    data_str += f"Use Edge Frequency Prior Mix: {use_edge_freq_prior}\n"
-    data_str += f"Edge Frequency Prior Mix p: {edge_freq_prior_p}\n"
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
@@ -371,21 +249,8 @@ if __name__ == "__main__":
         A.CoarseDropout(p=0.25, max_holes=8, max_height=24, max_width=24)
     ])
 
-    train_dataset = PolypDB_DATASET(
-        train_samples,
-        size,
-        transform=transform,
-        use_edge_freq_prior=use_edge_freq_prior,
-        edge_freq_prior_p=edge_freq_prior_p
-    )
-
-    valid_dataset = PolypDB_DATASET(
-        valid_samples,
-        size,
-        transform=None,
-        use_edge_freq_prior=False,
-        edge_freq_prior_p=0.0
-    )
+    train_dataset = PolypDB_DATASET(train_samples, size, transform=transform)
+    valid_dataset = PolypDB_DATASET(valid_samples, size, transform=None)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
@@ -421,8 +286,7 @@ if __name__ == "__main__":
             best_valid_metrics = valid_metrics[1]
             torch.save(model.state_dict(), checkpoint_path)
             early_stopping_count = 0
-
-        elif valid_metrics[1] < best_valid_metrics:
+        else:
             early_stopping_count += 1
 
         wandb.log({

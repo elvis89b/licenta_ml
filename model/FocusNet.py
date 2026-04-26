@@ -213,6 +213,67 @@ class CIDM_A(nn.Module):
         return x, out
 
 
+class LearnableSpectralBottleneck(nn.Module):
+    def __init__(self, channels, reduction=4):
+        super().__init__()
+        hidden = max(channels // reduction, 8)
+
+        self.pre = nn.Sequential(
+            nn.Conv2d(channels, hidden, kernel_size=1, bias=False),
+            nn.BatchNorm2d(hidden),
+            nn.ReLU(inplace=True)
+        )
+        self.post = nn.Sequential(
+            nn.Conv2d(hidden, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels)
+        )
+
+        self.low_gain = nn.Parameter(torch.zeros(1, hidden, 1, 1))
+        self.mid_gain = nn.Parameter(torch.zeros(1, hidden, 1, 1))
+        self.res_scale = nn.Parameter(torch.tensor(0.10))
+
+    def _radial_mask(self, h, w, device, inner_ratio, outer_ratio):
+        yy, xx = torch.meshgrid(
+            torch.arange(h, device=device),
+            torch.arange(w, device=device),
+            indexing='ij'
+        )
+        cy = (h - 1) / 2.0
+        cx = (w - 1) / 2.0
+        rr = torch.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
+        rmax = torch.sqrt(torch.tensor(cy ** 2 + cx ** 2, device=device)) + 1e-6
+
+        low = (rr <= (inner_ratio * rmax)).float()
+        mid = ((rr > (inner_ratio * rmax)) & (rr <= (outer_ratio * rmax))).float()
+
+        low = torch.fft.ifftshift(low)[None, None, :, :]
+        mid = torch.fft.ifftshift(mid.float())[None, None, :, :]
+        return low, mid
+
+    def forward(self, x):
+        identity = x
+        z = self.pre(x)
+
+        _, c, h, w = z.shape
+        if h < 4 or w < 4:
+            return identity
+
+        low_mask, mid_mask = self._radial_mask(h, w, z.device, inner_ratio=0.20, outer_ratio=0.55)
+
+        z_fft = torch.fft.fft2(z, norm='ortho')
+
+        low_gain = 1.0 + torch.tanh(self.low_gain)
+        mid_gain = 1.0 + torch.tanh(self.mid_gain)
+
+        gain = 1.0 + (low_gain - 1.0) * low_mask + (mid_gain - 1.0) * mid_mask
+        z_fft = z_fft * gain
+
+        z_ifft = torch.fft.ifft2(z_fft, norm='ortho').real
+        z_ifft = self.post(z_ifft)
+
+        return identity + self.res_scale * z_ifft
+
+
 class FocusNet(nn.Module):
     def __init__(self, channel=32):
         super(FocusNet, self).__init__()
@@ -229,6 +290,7 @@ class FocusNet(nn.Module):
         self.Translayer_pvt3 = BasicConv2d(320, channel, 1)
         self.Translayer_pvt4 = BasicConv2d(512, channel, 1)
 
+        self.spectral_bottleneck = LearnableSpectralBottleneck(channel, reduction=4)
         self.context = DEM(64, channel)
 
         self.decoder1 = CIDM_M(channel)
@@ -292,6 +354,8 @@ class FocusNet(nn.Module):
         x2_pvt = self.Translayer_pvt2(x2_pvt)
         x3_pvt = self.Translayer_pvt3(x3_pvt)
         x4_pvt = self.Translayer_pvt4(x4_pvt)
+
+        x4_pvt = self.spectral_bottleneck(x4_pvt)
 
         f1, a1 = self.decoder1(x4_pvt, x3_pvt, x2_pvt)
         out1 = self.res(a1, base_size)

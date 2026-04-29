@@ -106,6 +106,14 @@ Precision: 0.8265 (vs Paper: -0.0139, -1.65%)
 Accuracy: 0.9823 (vs Paper: -0.0064, -0.65%)
 F2: 0.8260 (vs Paper: -0.0084, -1.01%)
 
+DGFR + Band Head + Modality-Aware Soft UGEL + Boundary-Frequency Distillation
+mIoU/Jaccard: 0.6343 (vs Paper: -0.1117, -14.97%)
+mDSC/F1: 0.7467 (vs Paper: -0.0780, -9.46%)
+Recall: 0.9058 (vs Paper: +0.0586, +6.92%)
+Precision: 0.7034 (vs Paper: -0.1370, -16.30%)
+Accuracy: 0.9831 (vs Paper: -0.0056, -0.57%)
+F2: 0.8282 (vs Paper: -0.0062, -0.74%)
+
 FICE
 
 Paper
@@ -211,6 +219,14 @@ Recall: 0.8755 (vs Paper: -0.0047, -0.53%)
 Precision: 0.9073 (vs Paper: -0.0012, -0.13%)
 Accuracy: 0.9898 (vs Paper: -0.0016, -0.16%)
 F2: 0.8720 (vs Paper: -0.0086, -0.98%)
+
+DGFR + Band Head + Modality-Aware Soft UGEL + Boundary-Frequency Distillation
+mIoU/Jaccard: 0.6893 (vs Paper: -0.1360, -16.48%)
+mDSC/F1: 0.7979 (vs Paper: -0.0867, -9.80%)
+Recall: 0.9194 (vs Paper: +0.0392, +4.45%)
+Precision: 0.7307 (vs Paper: -0.1778, -19.57%)
+Accuracy: 0.9806 (vs Paper: -0.0108, -1.09%)
+F2: 0.8643 (vs Paper: -0.0163, -1.85%)
 
 LCI
 
@@ -318,6 +334,14 @@ Precision: 0.9277 (vs Paper: +0.0095, +1.03%)
 Accuracy: 0.9948 (vs Paper: +0.0007, +0.07%)
 F2: 0.9261 (vs Paper: -0.0031, -0.33%)
 
+DGFR + Band Head + Modality-Aware Soft UGEL + Boundary-Frequency Distillation
+mIoU/Jaccard: 0.6290 (vs Paper: -0.2323, -26.97%)
+mDSC/F1: 0.7602 (vs Paper: -0.1602, -17.41%)
+Recall: 0.9626 (vs Paper: +0.0248, +2.64%)
+Precision: 0.6557 (vs Paper: -0.2625, -28.59%)
+Accuracy: 0.9776 (vs Paper: -0.0165, -1.66%)
+F2: 0.8651 (vs Paper: -0.0641, -6.90%)
+
 NBI
 
 Paper
@@ -424,6 +448,14 @@ Precision: 0.8491 (vs Paper: -0.0095, -1.11%)
 Accuracy: 0.9699 (vs Paper: -0.0048, -0.49%)
 F2: 0.8276 (vs Paper: +0.0035, +0.42%)
 
+DGFR + Band Head + Modality-Aware Soft UGEL + Boundary-Frequency Distillation
+mIoU/Jaccard: 0.7076 (vs Paper: -0.0391, -5.24%)
+mDSC/F1: 0.7992 (vs Paper: -0.0217, -2.64%)
+Recall: 0.8714 (vs Paper: +0.0399, +4.80%)
+Precision: 0.8009 (vs Paper: -0.0577, -6.72%)
+Accuracy: 0.9728 (vs Paper: -0.0019, -0.19%)
+F2: 0.8372 (vs Paper: +0.0131, +1.59%)
+
 WLI
 
 Paper
@@ -529,3 +561,11 @@ Recall: 0.9405 (vs Paper: +0.0087, +0.93%)
 Precision: 0.9405 (vs Paper: -0.0072, -0.76%)
 Accuracy: 0.9864 (vs Paper: +0.0006, +0.06%)
 F2: 0.9361 (vs Paper: +0.0047, +0.50%)
+
+DGFR + Band Head + Modality-Aware Soft UGEL + Boundary-Frequency Distillation
+mIoU/Jaccard: 0.8853 (vs Paper: -0.0009, -0.10%)
+mDSC/F1: 0.9328 (vs Paper: -0.0014, -0.15%)
+Recall: 0.9350 (vs Paper: +0.0032, +0.34%)
+Precision: 0.9442 (vs Paper: -0.0035, -0.37%)
+Accuracy: 0.9864 (vs Paper: +0.0006, +0.06%)
+F2: 0.9321 (vs Paper: +0.0007, +0.08%)

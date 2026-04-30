@@ -53,8 +53,15 @@ class WeightedDiceBCELoss(nn.Module):
         return bce + dice
 
 
-class FocalTverskyLoss(nn.Module):
-    def __init__(self, alpha=0.35, beta=0.65, gamma=0.75, smooth=1.0):
+class PrecisionFocalTverskyLoss(nn.Module):
+    """
+    Precision-oriented Focal Tversky.
+
+    alpha > beta means false positives are penalized more than false negatives.
+    This is intentional because the previous experiment over-segmented strongly.
+    """
+
+    def __init__(self, alpha=0.70, beta=0.30, gamma=0.75, smooth=1.0):
         super().__init__()
 
         self.alpha = alpha
@@ -99,9 +106,8 @@ class _ASPPModuleDeformable(nn.Module):
     def forward(self, x):
         x = self.atrous_conv(x)
         x = self.bn(x)
-        x = self.relu(x)
 
-        return x
+        return self.relu(x)
 
 
 class DEM(nn.Module):
@@ -309,7 +315,11 @@ class FocusNet(nn.Module):
 
         self.seg_loss = DiceBCELoss()
         self.weighted_seg_loss = WeightedDiceBCELoss()
-        self.focal_tversky_loss = FocalTverskyLoss(alpha=0.35, beta=0.65, gamma=0.75)
+        self.precision_tversky_loss = PrecisionFocalTverskyLoss(
+            alpha=0.70,
+            beta=0.30,
+            gamma=0.75
+        )
 
         self.loss_w1 = 0.35
         self.loss_w2 = 0.35
@@ -317,14 +327,24 @@ class FocusNet(nn.Module):
         self.loss_w4 = 0.65
         self.final_loss_weight = 1.00
 
-        self.focal_tversky_weight = 0.25
-        self.consistency_weight = 0.12
-        self.band_loss_weight = 0.25
+        self.precision_tversky_weight = 0.20
+        self.consistency_weight = 0.10
+        self.band_loss_weight = 0.22
 
-        self.soft_ugel_weight = 0.18
-        self.freq_boundary_weight = 0.035
+        self.conservative_ugel_weight = 0.14
+        self.false_positive_weight = 0.20
+        self.background_loss_weight = 0.16
+        self.area_loss_weight = 0.04
 
         self.band_head = nn.Sequential(
+            BasicConv2d(channel * 2, channel, 3, padding=1),
+            nn.ReLU(inplace=True),
+            BasicConv2d(channel, channel, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel, 1, kernel_size=1)
+        )
+
+        self.background_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
             nn.ReLU(inplace=True),
             BasicConv2d(channel, channel, 3, padding=1),
@@ -388,6 +408,18 @@ class FocusNet(nn.Module):
 
         return torch.clamp(band, 0.0, 1.0)
 
+    def dilate_mask(self, mask, kernel_size=13):
+        pad = kernel_size // 2
+
+        dilated = F.max_pool2d(
+            mask,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=pad
+        )
+
+        return torch.clamp(dilated, 0.0, 1.0)
+
     def normalize_uncertainty(self, u):
         u = u.detach()
 
@@ -408,24 +440,38 @@ class FocusNet(nn.Module):
             modalities = [modalities]
 
         edge_scales = {
-            "BLI": 1.35,
-            "FICE": 1.15,
-            "LCI": 0.95,
-            "NBI": 1.45,
-            "WLI": 0.10,
+            "BLI": 1.00,
+            "FICE": 0.95,
+            "LCI": 0.85,
+            "NBI": 1.05,
+            "WLI": 0.08,
             "UNKNOWN": 0.75
         }
 
-        freq_scales = {
+        fp_scales = {
             "BLI": 1.15,
-            "FICE": 1.00,
-            "LCI": 0.85,
-            "NBI": 1.20,
-            "WLI": 0.30,
-            "UNKNOWN": 0.70
+            "FICE": 1.20,
+            "LCI": 1.35,
+            "NBI": 1.05,
+            "WLI": 0.70,
+            "UNKNOWN": 1.00
         }
 
-        scale_map = edge_scales if scale_type == "edge" else freq_scales
+        bg_scales = {
+            "BLI": 1.10,
+            "FICE": 1.15,
+            "LCI": 1.30,
+            "NBI": 1.05,
+            "WLI": 0.65,
+            "UNKNOWN": 1.00
+        }
+
+        if scale_type == "edge":
+            scale_map = edge_scales
+        elif scale_type == "fp":
+            scale_map = fp_scales
+        else:
+            scale_map = bg_scales
 
         values = []
 
@@ -444,74 +490,73 @@ class FocusNet(nn.Module):
 
         return edge
 
-    def image_gray(self, x):
-        if x.shape[1] == 1:
-            gray = x
-        else:
-            gray = (
-                0.299 * x[:, 0:1]
-                + 0.587 * x[:, 1:2]
-                + 0.114 * x[:, 2:3]
-            )
-
-        gray_min = gray.amin(dim=(-2, -1), keepdim=True)
-        gray_max = gray.amax(dim=(-2, -1), keepdim=True)
-
-        gray = (gray - gray_min) / (gray_max - gray_min + 1e-6)
-
-        return gray
-
-    def soft_uncertainty_gated_edge_loss(self, logits, mask, image, sample):
+    def conservative_uncertainty_gated_edge_loss(self, logits, mask, sample):
         probs = torch.sigmoid(logits)
 
         pred_edge = self.edge_map(probs)
         gt_edge = self.edge_map(mask)
 
-        gt_band = self.make_band_target(mask, kernel_size=7)
+        boundary_band = self.make_band_target(mask, kernel_size=7)
 
         uncertainty = 4.0 * probs * (1.0 - probs)
         uncertainty = uncertainty.detach()
         uncertainty = torch.clamp(uncertainty, 0.0, 1.0)
 
-        gray = self.image_gray(image)
-        img_edge = self.edge_map(gray).detach()
-
-        if img_edge.shape[-2:] != logits.shape[-2:]:
-            img_edge = F.interpolate(
-                img_edge,
-                size=logits.shape[-2:],
-                mode="bilinear",
-                align_corners=False
-            )
-
-        image_gate = 0.65 + 0.35 * img_edge
-
         edge_error = torch.abs(pred_edge - gt_edge)
 
-        loss = edge_error * gt_band * (0.35 + 0.65 * uncertainty) * image_gate
+        loss = edge_error * boundary_band * (0.25 + 0.75 * uncertainty)
         loss = loss.mean()
 
         modality_scale = self.get_modality_scale(sample, scale_type="edge")
 
         return loss * modality_scale
 
-    def frequency_boundary_loss(self, logits, mask, sample):
+    def false_positive_suppression_loss(self, logits, mask, sample):
         probs = torch.sigmoid(logits)
 
-        pred_edge = self.edge_map(probs)
-        gt_edge = self.edge_map(mask)
+        dilated_mask = self.dilate_mask(mask, kernel_size=13)
 
-        pred_fft = torch.fft.rfft2(pred_edge, norm="ortho")
-        gt_fft = torch.fft.rfft2(gt_edge, norm="ortho")
+        safe_background = 1.0 - dilated_mask
 
-        pred_amp = torch.log1p(torch.abs(pred_fft))
-        gt_amp = torch.log1p(torch.abs(gt_fft))
+        high_confidence_fp = probs * probs
 
-        loss = F.l1_loss(pred_amp, gt_amp)
+        loss = (high_confidence_fp * safe_background).sum() / (
+            safe_background.sum() + 1e-6
+        )
 
-        modality_scale = self.get_modality_scale(sample, scale_type="freq")
+        modality_scale = self.get_modality_scale(sample, scale_type="fp")
 
         return loss * modality_scale
+
+    def background_supervision_loss(self, background_logits, mask, sample):
+        background_target = 1.0 - mask
+
+        dilated_mask = self.dilate_mask(mask, kernel_size=13)
+        safe_background = 1.0 - dilated_mask
+
+        boundary_band = self.make_band_target(mask, kernel_size=9)
+
+        pixel_weight = 1.0 + 1.5 * safe_background + 0.75 * boundary_band
+
+        bce = F.binary_cross_entropy_with_logits(
+            background_logits,
+            background_target,
+            reduction="none"
+        )
+
+        bce = (bce * pixel_weight).sum() / (pixel_weight.sum() + 1e-6)
+
+        modality_scale = self.get_modality_scale(sample, scale_type="bg")
+
+        return bce * modality_scale
+
+    def area_regularization_loss(self, logits, mask):
+        probs = torch.sigmoid(logits)
+
+        pred_area = probs.mean(dim=(1, 2, 3))
+        gt_area = mask.mean(dim=(1, 2, 3))
+
+        return F.smooth_l1_loss(pred_area, gt_area)
 
     def forward(self, sample):
         x = sample["images"]
@@ -548,16 +593,20 @@ class FocusNet(nn.Module):
 
         out = out1 + out2 + out3 + out4
 
-        band_feat = torch.cat([f3, f4], dim=1)
-        band_pred = self.band_head(band_feat)
+        refinement_feat = torch.cat([f3, f4], dim=1)
+
+        band_pred = self.band_head(refinement_feat)
         band_pred_up = self.res(band_pred, base_size)
+
+        background_pred = self.background_head(refinement_feat)
+        background_pred_up = self.res(background_pred, base_size)
 
         uncertainty_full = self.res(coarse_uncertainty, base_size)
         uncertainty_full = self.normalize_uncertainty(uncertainty_full)
 
         band_target = self.make_band_target(y, kernel_size=7)
 
-        pixel_weight = 1.0 + 1.5 * uncertainty_full + 0.5 * band_target
+        pixel_weight = 1.0 + 1.25 * uncertainty_full + 0.5 * band_target
 
         loss1 = self.seg_loss(out1, y)
         loss2 = self.seg_loss(out2, y)
@@ -565,7 +614,8 @@ class FocusNet(nn.Module):
         loss4 = self.seg_loss(out4, y)
 
         loss_final = self.seg_loss(out, y)
-        loss_final_ft = self.focal_tversky_loss(out, y)
+
+        loss_precision_tversky = self.precision_tversky_loss(out, y)
 
         loss_consistency = self.selective_agreement_loss(
             out1,
@@ -579,17 +629,27 @@ class FocusNet(nn.Module):
             pixel_weight=pixel_weight
         )
 
-        loss_soft_ugel = self.soft_uncertainty_gated_edge_loss(
+        loss_conservative_ugel = self.conservative_uncertainty_gated_edge_loss(
             logits=out,
             mask=y,
-            image=x,
             sample=sample
         )
 
-        loss_freq_boundary = self.frequency_boundary_loss(
+        loss_false_positive = self.false_positive_suppression_loss(
             logits=out,
             mask=y,
             sample=sample
+        )
+
+        loss_background = self.background_supervision_loss(
+            background_logits=background_pred_up,
+            mask=y,
+            sample=sample
+        )
+
+        loss_area = self.area_regularization_loss(
+            logits=out,
+            mask=y
         )
 
         loss = (
@@ -598,20 +658,33 @@ class FocusNet(nn.Module):
             + self.loss_w3 * loss3
             + self.loss_w4 * loss4
             + self.final_loss_weight * loss_final
-            + self.focal_tversky_weight * loss_final_ft
+            + self.precision_tversky_weight * loss_precision_tversky
             + self.consistency_weight * loss_consistency
             + self.band_loss_weight * loss_band
-            + self.soft_ugel_weight * loss_soft_ugel
-            + self.freq_boundary_weight * loss_freq_boundary
+            + self.conservative_ugel_weight * loss_conservative_ugel
+            + self.false_positive_weight * loss_false_positive
+            + self.background_loss_weight * loss_background
+            + self.area_loss_weight * loss_area
         )
+
+        zero_loss = loss_final.detach() * 0.0
 
         return {
             "prediction": out,
             "loss": loss,
+
             "loss_final": loss_final.detach(),
-            "loss_focal_tversky": loss_final_ft.detach(),
+            "loss_focal_tversky": loss_precision_tversky.detach(),
             "loss_band": loss_band.detach(),
-            "loss_soft_ugel": loss_soft_ugel.detach(),
-            "loss_freq_boundary": loss_freq_boundary.detach(),
-            "loss_consistency": loss_consistency.detach()
+            "loss_soft_ugel": loss_conservative_ugel.detach(),
+
+            # Kept for compatibility with your existing train scripts.
+            "loss_freq_boundary": zero_loss,
+
+            "loss_consistency": loss_consistency.detach(),
+
+            # Extra debug values. Existing train scripts can ignore them.
+            "loss_false_positive": loss_false_positive.detach(),
+            "loss_background": loss_background.detach(),
+            "loss_area": loss_area.detach()
         }

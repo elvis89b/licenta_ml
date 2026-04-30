@@ -114,6 +114,14 @@ Precision: 0.7034 (vs Paper: -0.1370, -16.30%)
 Accuracy: 0.9831 (vs Paper: -0.0056, -0.57%)
 F2: 0.8282 (vs Paper: -0.0062, -0.74%)
 
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.6437 (vs Paper: -0.1023, -13.71%)
+mDSC/F1: 0.7584 (vs Paper: -0.0663, -8.04%)
+Recall: 0.9155 (vs Paper: +0.0683, +8.06%)
+Precision: 0.7056 (vs Paper: -0.1348, -16.04%)
+Accuracy: 0.9837 (vs Paper: -0.0050, -0.51%)
+F2: 0.8410 (vs Paper: +0.0066, +0.79%)
+
 FICE
 
 Paper
@@ -227,6 +235,14 @@ Recall: 0.9194 (vs Paper: +0.0392, +4.45%)
 Precision: 0.7307 (vs Paper: -0.1778, -19.57%)
 Accuracy: 0.9806 (vs Paper: -0.0108, -1.09%)
 F2: 0.8643 (vs Paper: -0.0163, -1.85%)
+
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.5746 (vs Paper: -0.2507, -30.38%)
+mDSC/F1: 0.7097 (vs Paper: -0.1749, -19.77%)
+Recall: 0.9353 (vs Paper: +0.0551, +6.26%)
+Precision: 0.6018 (vs Paper: -0.3067, -33.76%)
+Accuracy: 0.9659 (vs Paper: -0.0255, -2.57%)
+F2: 0.8242 (vs Paper: -0.0564, -6.40%)
 
 LCI
 
@@ -342,6 +358,14 @@ Precision: 0.6557 (vs Paper: -0.2625, -28.59%)
 Accuracy: 0.9776 (vs Paper: -0.0165, -1.66%)
 F2: 0.8651 (vs Paper: -0.0641, -6.90%)
 
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.7128 (vs Paper: -0.1485, -17.24%)
+mDSC/F1: 0.8204 (vs Paper: -0.1000, -10.86%)
+Recall: 0.9628 (vs Paper: +0.0250, +2.67%)
+Precision: 0.7384 (vs Paper: -0.1798, -19.58%)
+Accuracy: 0.9833 (vs Paper: -0.0108, -1.09%)
+F2: 0.8967 (vs Paper: -0.0325, -3.50%)
+
 NBI
 
 Paper
@@ -456,6 +480,14 @@ Precision: 0.8009 (vs Paper: -0.0577, -6.72%)
 Accuracy: 0.9728 (vs Paper: -0.0019, -0.19%)
 F2: 0.8372 (vs Paper: +0.0131, +1.59%)
 
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.6229 (vs Paper: -0.1238, -16.58%)
+mDSC/F1: 0.7250 (vs Paper: -0.0959, -11.68%)
+Recall: 0.8343 (vs Paper: +0.0028, +0.34%)
+Precision: 0.7539 (vs Paper: -0.1047, -12.19%)
+Accuracy: 0.9669 (vs Paper: -0.0078, -0.80%)
+F2: 0.7833 (vs Paper: -0.0408, -4.95%)
+
 WLI
 
 Paper
@@ -569,3 +601,11 @@ Recall: 0.9350 (vs Paper: +0.0032, +0.34%)
 Precision: 0.9442 (vs Paper: -0.0035, -0.37%)
 Accuracy: 0.9864 (vs Paper: +0.0006, +0.06%)
 F2: 0.9321 (vs Paper: +0.0007, +0.08%)
+
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.8871 (vs Paper: +0.0009, +0.10%)
+mDSC/F1: 0.9351 (vs Paper: +0.0009, +0.10%)
+Recall: 0.9298 (vs Paper: -0.0020, -0.21%)
+Precision: 0.9517 (vs Paper: +0.0040, +0.42%)
+Accuracy: 0.9858 (vs Paper: +0.0000, +0.00%)
+F2: 0.9307 (vs Paper: -0.0007, -0.08%)

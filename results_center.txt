@@ -114,6 +114,14 @@ Precision: 0.9344 (vs Paper: -0.0062, -0.66%)
 Accuracy: 0.9798 (vs Paper: -0.0010, -0.10%)
 F2: 0.9093 (vs Paper: -0.0123, -1.33%)
 
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.8719 (vs Paper: +0.0007, +0.08%)
+mDSC/F1: 0.9244 (vs Paper: +0.0014, +0.15%)
+Recall: 0.9235 (vs Paper: -0.0004, -0.04%)
+Precision: 0.9404 (vs Paper: -0.0002, -0.02%)
+Accuracy: 0.9818 (vs Paper: +0.0010, +0.10%)
+F2: 0.9220 (vs Paper: +0.0004, +0.04%)
+
 BKAI
 
 Paper
@@ -227,6 +235,14 @@ Recall: 0.9212 (vs Paper: -0.0102, -1.10%)
 Precision: 0.9046 (vs Paper: -0.0091, -1.00%)
 Accuracy: 0.9927 (vs Paper: +0.0006, +0.06%)
 F2: 0.9124 (vs Paper: -0.0077, -0.84%)
+
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.8449 (vs Paper: -0.0165, -1.92%)
+mDSC/F1: 0.8954 (vs Paper: -0.0173, -1.90%)
+Recall: 0.9102 (vs Paper: -0.0212, -2.28%)
+Precision: 0.8975 (vs Paper: -0.0162, -1.77%)
+Accuracy: 0.9903 (vs Paper: -0.0018, -0.18%)
+F2: 0.9005 (vs Paper: -0.0196, -2.13%)
 
 Karolinska
 
@@ -349,3 +365,11 @@ Recall: 0.9781 (vs Paper: +0.0370, +3.93%)
 Precision: 0.7793 (vs Paper: -0.1808, -18.83%)
 Accuracy: 0.9806 (vs Paper: -0.0093, -0.94%)
 F2: 0.9272 (vs Paper: -0.0153, -1.62%)
+
+DGFR + Band Head + Precision-Guided Reverse Background Suppression
+mIoU/Jaccard: 0.7987 (vs Paper: -0.1054, -11.66%)
+mDSC/F1: 0.8880 (vs Paper: -0.0584, -6.17%)
+Recall: 0.9536 (vs Paper: +0.0125, +1.33%)
+Precision: 0.8362 (vs Paper: -0.1239, -12.90%)
+Accuracy: 0.9836 (vs Paper: -0.0063, -0.64%)
+F2: 0.9254 (vs Paper: -0.0171, -1.81%)

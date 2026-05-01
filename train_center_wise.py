@@ -16,9 +16,9 @@ from utils import seeding, create_dir, print_and_save, epoch_time, calculate_met
 from model.FocusNet import FocusNet
 
 
-EXPERIMENT_TAG = "precision_guided_rbs"
-VARIANT_NAME = "DGFR+BandHead+PrecisionGuidedReverseBackgroundSuppression"
-LOSS_NAME = "Internal DiceBCE + PrecisionFocalTversky + Band + ConservativeUGEL + FalsePositiveSuppression + BackgroundSupervision"
+EXPERIMENT_SLUG = "ugel_dual_supervised_reverse_background_calibration"
+EXPERIMENT_NAME_BASE = "FocusNet_DGFR_BandHead_UGEL_DualSupervisedReverseBackgroundCalibration"
+VARIANT_NAME = "DGFR+BandHead+UGEL+DualSupervisedReverseBackgroundCalibration"
 
 
 def infer_modality_from_path(path):
@@ -55,6 +55,7 @@ def load_polypdb_center_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
+
     images = images_jpg + images_png
 
     for image_path in images:
@@ -137,18 +138,6 @@ class PolypDB_DATASET(Dataset):
         return self.n_samples
 
 
-def get_loss_value(out, key):
-    value = out.get(key, None)
-
-    if value is None:
-        return 0.0
-
-    if torch.is_tensor(value):
-        return value.item()
-
-    return float(value)
-
-
 def train(model, loader, optimizer, device):
     model.train()
 
@@ -158,16 +147,15 @@ def train(model, loader, optimizer, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_sums = {
+    loss_part_sums = {
         "loss_final": 0.0,
         "loss_focal_tversky": 0.0,
         "loss_band": 0.0,
-        "loss_soft_ugel": 0.0,
-        "loss_freq_boundary": 0.0,
-        "loss_consistency": 0.0,
-        "loss_false_positive": 0.0,
+        "loss_ugel": 0.0,
         "loss_background": 0.0,
-        "loss_area": 0.0
+        "loss_exclusivity": 0.0,
+        "loss_hard_negative": 0.0,
+        "loss_consistency": 0.0
     }
 
     for x, y, modalities in loader:
@@ -192,8 +180,8 @@ def train(model, loader, optimizer, device):
 
         epoch_loss += loss.item()
 
-        for key in loss_sums:
-            loss_sums[key] += get_loss_value(out, key)
+        for key in loss_part_sums.keys():
+            loss_part_sums[key] += out[key].item()
 
         batch_jac = []
         batch_f1 = []
@@ -223,7 +211,10 @@ def train(model, loader, optimizer, device):
     epoch_recall /= n_batches
     epoch_precision /= n_batches
 
-    loss_parts = {key: value / n_batches for key, value in loss_sums.items()}
+    loss_parts = {
+        key: value / n_batches
+        for key, value in loss_part_sums.items()
+    }
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
 
@@ -237,16 +228,15 @@ def evaluate(model, loader, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_sums = {
+    loss_part_sums = {
         "loss_final": 0.0,
         "loss_focal_tversky": 0.0,
         "loss_band": 0.0,
-        "loss_soft_ugel": 0.0,
-        "loss_freq_boundary": 0.0,
-        "loss_consistency": 0.0,
-        "loss_false_positive": 0.0,
+        "loss_ugel": 0.0,
         "loss_background": 0.0,
-        "loss_area": 0.0
+        "loss_exclusivity": 0.0,
+        "loss_hard_negative": 0.0,
+        "loss_consistency": 0.0
     }
 
     with torch.no_grad():
@@ -267,8 +257,8 @@ def evaluate(model, loader, device):
 
             epoch_loss += loss.item()
 
-            for key in loss_sums:
-                loss_sums[key] += get_loss_value(out, key)
+            for key in loss_part_sums.keys():
+                loss_part_sums[key] += out[key].item()
 
             batch_jac = []
             batch_f1 = []
@@ -298,7 +288,10 @@ def evaluate(model, loader, device):
     epoch_recall /= n_batches
     epoch_precision /= n_batches
 
-    loss_parts = {key: value / n_batches for key, value in loss_sums.items()}
+    loss_parts = {
+        key: value / n_batches
+        for key, value in loss_part_sums.items()
+    }
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
 
@@ -309,12 +302,17 @@ def run_experiment(path):
     current_modality = infer_modality_from_path(path)
     current_center = infer_center_from_path(path)
 
-    experiment_name = f"FocusNet_DGFR_BandHead_PrecisionGuidedRBS_center_{current_center}_{current_modality}"
+    experiment_name = (
+        f"{EXPERIMENT_NAME_BASE}_center_{current_center}_{current_modality}"
+    )
 
     create_dir("files")
     create_dir(f"files/center_wise/{model_name}")
 
-    train_log_path = f"files/center_wise/{model_name}/train_log_{current_center}_{current_modality}_{EXPERIMENT_TAG}.txt"
+    train_log_path = (
+        f"files/center_wise/{model_name}/"
+        f"train_log_{current_center}_{current_modality}_{EXPERIMENT_SLUG}.txt"
+    )
 
     with open(train_log_path, "w") as train_log:
         train_log.write("")
@@ -332,7 +330,10 @@ def run_experiment(path):
     weight_decay = 1e-4
     early_stopping_patience = 50
 
-    checkpoint_path = f"files/center_wise/{model_name}/checkpoint_{current_center}_{current_modality}_{EXPERIMENT_TAG}.pth"
+    checkpoint_path = (
+        f"files/center_wise/{model_name}/"
+        f"checkpoint_{current_center}_{current_modality}_{EXPERIMENT_SLUG}.pth"
+    )
 
     wandb.init(
         project="polyp-segmentation-focusnet",
@@ -351,13 +352,13 @@ def run_experiment(path):
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
-            "loss": LOSS_NAME
+            "loss": "DiceBCE + FocalTversky + Band + UGEL + DualSupervisedBackground + Exclusivity + HardNegative"
         }
     )
 
     data_str = f"Experiment: {experiment_name}\n"
     data_str += f"Variant: {VARIANT_NAME}\n"
-    data_str += f"Setting: center_wise\n"
+    data_str += "Setting: center_wise\n"
     data_str += f"Center: {current_center}\n"
     data_str += f"Modality: {current_modality}\n"
     data_str += f"Image Size: {size}\n"
@@ -373,8 +374,12 @@ def run_experiment(path):
     train_samples, valid_samples, test_samples = load_polypdb_center_data(path)
     train_samples = shuffle(train_samples, random_state=42)
 
-    data_str = f"Dataset Size:\n"
-    data_str += f"Train: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
+    data_str = "Dataset Size:\n"
+    data_str += (
+        f"Train: {len(train_samples)} "
+        f"- Valid: {len(valid_samples)} "
+        f"- Test: {len(test_samples)}\n"
+    )
 
     print_and_save(train_log_path, data_str)
 
@@ -383,7 +388,9 @@ def run_experiment(path):
             train_log_path,
             f"Skipping {current_center}/{current_modality}: empty train or validation split.\n"
         )
+
         wandb.finish()
+
         return
 
     transform = A.Compose([
@@ -447,9 +454,9 @@ def run_experiment(path):
         verbose=True
     )
 
-    data_str = f"Optimizer: AdamW\n"
-    data_str += f"Scheduler: ReduceLROnPlateau\n"
-    data_str += f"Loss: {LOSS_NAME}\n"
+    data_str = "Optimizer: AdamW\n"
+    data_str += "Scheduler: ReduceLROnPlateau\n"
+    data_str += "Loss: Internal composite loss with UGEL + Dual-Supervised Reverse Background Calibration\n"
 
     print_and_save(train_log_path, data_str)
 
@@ -491,7 +498,7 @@ def run_experiment(path):
         else:
             early_stopping_count += 1
 
-        wandb.log({
+        log_data = {
             "epoch": epoch + 1,
             "lr": current_lr,
 
@@ -507,26 +514,16 @@ def run_experiment(path):
             "valid/recall": valid_metrics[2],
             "valid/precision": valid_metrics[3],
 
-            "train/loss_final": train_loss_parts["loss_final"],
-            "train/loss_precision_tversky": train_loss_parts["loss_focal_tversky"],
-            "train/loss_band": train_loss_parts["loss_band"],
-            "train/loss_conservative_ugel": train_loss_parts["loss_soft_ugel"],
-            "train/loss_consistency": train_loss_parts["loss_consistency"],
-            "train/loss_false_positive": train_loss_parts["loss_false_positive"],
-            "train/loss_background": train_loss_parts["loss_background"],
-            "train/loss_area": train_loss_parts["loss_area"],
-
-            "valid/loss_final": valid_loss_parts["loss_final"],
-            "valid/loss_precision_tversky": valid_loss_parts["loss_focal_tversky"],
-            "valid/loss_band": valid_loss_parts["loss_band"],
-            "valid/loss_conservative_ugel": valid_loss_parts["loss_soft_ugel"],
-            "valid/loss_consistency": valid_loss_parts["loss_consistency"],
-            "valid/loss_false_positive": valid_loss_parts["loss_false_positive"],
-            "valid/loss_background": valid_loss_parts["loss_background"],
-            "valid/loss_area": valid_loss_parts["loss_area"],
-
             "best_valid_f1": best_valid_f1
-        })
+        }
+
+        for key, value in train_loss_parts.items():
+            log_data[f"train/{key}"] = value
+
+        for key, value in valid_loss_parts.items():
+            log_data[f"valid/{key}"] = value
+
+        wandb.log(log_data)
 
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
@@ -552,12 +549,12 @@ def run_experiment(path):
         data_str += (
             f"\t Valid Loss Parts "
             f"- Final: {valid_loss_parts['loss_final']:.4f} "
-            f"- PrecisionFT: {valid_loss_parts['loss_focal_tversky']:.4f} "
+            f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
             f"- Band: {valid_loss_parts['loss_band']:.4f} "
-            f"- ConservativeUGEL: {valid_loss_parts['loss_soft_ugel']:.4f} "
-            f"- FP: {valid_loss_parts['loss_false_positive']:.4f} "
+            f"- UGEL: {valid_loss_parts['loss_ugel']:.4f} "
             f"- BG: {valid_loss_parts['loss_background']:.4f} "
-            f"- Area: {valid_loss_parts['loss_area']:.4f} "
+            f"- Exclusivity: {valid_loss_parts['loss_exclusivity']:.4f} "
+            f"- HardNeg: {valid_loss_parts['loss_hard_negative']:.4f} "
             f"- Consistency: {valid_loss_parts['loss_consistency']:.4f}\n"
         )
 

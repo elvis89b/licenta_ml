@@ -16,7 +16,7 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-EXPERIMENT_TAG = "precision_guided_rbs"
+EXPERIMENT_SLUG = "ugel_dual_supervised_reverse_background_calibration"
 
 
 def load_polypdb_center_data(path):
@@ -24,6 +24,7 @@ def load_polypdb_center_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
+
     images = images_jpg + images_png
 
     for image_path in images:
@@ -64,12 +65,18 @@ def evaluate(model, device, save_path, test_samples, size, modality):
         if image is None:
             raise ValueError(f"Could not read image: {x}")
 
-        image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
+        image = cv2.resize(
+            image,
+            size,
+            interpolation=cv2.INTER_LINEAR
+        )
+
         save_img = image.copy()
 
         image = np.transpose(image, (2, 0, 1))
         image = image.astype(np.float32) / 255.0
         image = np.expand_dims(image, axis=0)
+
         image = torch.from_numpy(image).to(device, dtype=torch.float32)
 
         mask = cv2.imread(y, cv2.IMREAD_GRAYSCALE)
@@ -77,7 +84,11 @@ def evaluate(model, device, save_path, test_samples, size, modality):
         if mask is None:
             raise ValueError(f"Could not read mask: {y}")
 
-        mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
+        mask = cv2.resize(
+            mask,
+            size,
+            interpolation=cv2.INTER_NEAREST
+        )
 
         save_mask = np.expand_dims(mask, axis=-1)
         save_mask = np.concatenate([save_mask, save_mask, save_mask], axis=2)
@@ -86,6 +97,7 @@ def evaluate(model, device, save_path, test_samples, size, modality):
         mask = mask.astype(np.float32) / 255.0
         mask = (mask > 0.5).astype(np.float32)
         mask = np.expand_dims(mask, axis=0)
+
         mask = torch.from_numpy(mask).to(device, dtype=torch.float32)
 
         with torch.no_grad():
@@ -189,7 +201,7 @@ if __name__ == "__main__":
 
         checkpoint_path = (
             f"files/center_wise/{model_name}/"
-            f"checkpoint_{test_center}_{modality}_{EXPERIMENT_TAG}.pth"
+            f"checkpoint_{test_center}_{modality}_{EXPERIMENT_SLUG}.pth"
         )
 
         if not os.path.exists(checkpoint_path):
@@ -214,7 +226,7 @@ if __name__ == "__main__":
 
         save_path = (
             f"files/center_wise/{model_name}/"
-            f"results_{EXPERIMENT_TAG}/{test_center}/{modality}"
+            f"results_{EXPERIMENT_SLUG}/{test_center}/{modality}"
         )
 
         create_dir(save_path)

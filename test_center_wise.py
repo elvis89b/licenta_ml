@@ -16,7 +16,7 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-EXPERIMENT_SLUG = "ugel_dual_supervised_reverse_background_calibration"
+EXPERIMENT_SUFFIX = "gray_wavelet_boundary_calibration"
 
 
 def load_polypdb_center_data(path):
@@ -65,12 +65,7 @@ def evaluate(model, device, save_path, test_samples, size, modality):
         if image is None:
             raise ValueError(f"Could not read image: {x}")
 
-        image = cv2.resize(
-            image,
-            size,
-            interpolation=cv2.INTER_LINEAR
-        )
-
+        image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
         save_img = image.copy()
 
         image = np.transpose(image, (2, 0, 1))
@@ -84,11 +79,7 @@ def evaluate(model, device, save_path, test_samples, size, modality):
         if mask is None:
             raise ValueError(f"Could not read mask: {y}")
 
-        mask = cv2.resize(
-            mask,
-            size,
-            interpolation=cv2.INTER_NEAREST
-        )
+        mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
 
         save_mask = np.expand_dims(mask, axis=-1)
         save_mask = np.concatenate([save_mask, save_mask, save_mask], axis=2)
@@ -201,7 +192,7 @@ if __name__ == "__main__":
 
         checkpoint_path = (
             f"files/center_wise/{model_name}/"
-            f"checkpoint_{test_center}_{modality}_{EXPERIMENT_SLUG}.pth"
+            f"checkpoint_{test_center}_{modality}_{EXPERIMENT_SUFFIX}.pth"
         )
 
         if not os.path.exists(checkpoint_path):
@@ -226,7 +217,7 @@ if __name__ == "__main__":
 
         save_path = (
             f"files/center_wise/{model_name}/"
-            f"results_{EXPERIMENT_SLUG}/{test_center}/{modality}"
+            f"results_{EXPERIMENT_SUFFIX}/{test_center}/{modality}"
         )
 
         create_dir(save_path)

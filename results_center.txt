@@ -122,6 +122,14 @@ Precision: 0.9404 (vs Paper: -0.0002, -0.02%)
 Accuracy: 0.9818 (vs Paper: +0.0010, +0.10%)
 F2: 0.9220 (vs Paper: +0.0004, +0.04%)
 
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.8748 (vs Paper: +0.0036, +0.41%)
+mDSC/F1: 0.9273 (vs Paper: +0.0043, +0.47%)
+Recall: 0.9275 (vs Paper: +0.0036, +0.39%)
+Precision: 0.9413 (vs Paper: +0.0007, +0.07%)
+Accuracy: 0.9818 (vs Paper: +0.0010, +0.10%)
+F2: 0.9256 (vs Paper: +0.0040, +0.43%)
+
 BKAI
 
 Paper
@@ -243,6 +251,14 @@ Recall: 0.9102 (vs Paper: -0.0212, -2.28%)
 Precision: 0.8975 (vs Paper: -0.0162, -1.77%)
 Accuracy: 0.9903 (vs Paper: -0.0018, -0.18%)
 F2: 0.9005 (vs Paper: -0.0196, -2.13%)
+
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.8556 (vs Paper: -0.0058, -0.67%)
+mDSC/F1: 0.9037 (vs Paper: -0.0090, -0.99%)
+Recall: 0.9279 (vs Paper: -0.0035, -0.38%)
+Precision: 0.8951 (vs Paper: -0.0186, -2.04%)
+Accuracy: 0.9925 (vs Paper: +0.0004, +0.04%)
+F2: 0.9143 (vs Paper: -0.0058, -0.63%)
 
 Karolinska
 
@@ -373,3 +389,11 @@ Recall: 0.9536 (vs Paper: +0.0125, +1.33%)
 Precision: 0.8362 (vs Paper: -0.1239, -12.90%)
 Accuracy: 0.9836 (vs Paper: -0.0063, -0.64%)
 F2: 0.9254 (vs Paper: -0.0171, -1.81%)
+
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.7599 (vs Paper: -0.1442, -15.95%)
+mDSC/F1: 0.8610 (vs Paper: -0.0854, -9.02%)
+Recall: 0.9751 (vs Paper: +0.0340, +3.61%)
+Precision: 0.7793 (vs Paper: -0.1808, -18.83%)
+Accuracy: 0.9776 (vs Paper: -0.0123, -1.24%)
+F2: 0.9244 (vs Paper: -0.0181, -1.92%)

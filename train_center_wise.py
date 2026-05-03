@@ -4,21 +4,22 @@ import datetime
 import numpy as np
 import albumentations as A
 import cv2
+
 from glob import glob
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 
 import wandb
+
 from sklearn.utils import shuffle
 
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 from model.FocusNet import FocusNet
 
 
-EXPERIMENT_SLUG = "ugel_dual_supervised_reverse_background_calibration"
-EXPERIMENT_NAME_BASE = "FocusNet_DGFR_BandHead_UGEL_DualSupervisedReverseBackgroundCalibration"
-VARIANT_NAME = "DGFR+BandHead+UGEL+DualSupervisedReverseBackgroundCalibration"
+EXPERIMENT_SUFFIX = "gray_wavelet_boundary_calibration"
+VARIANT_NAME = "DGFR+BandHead+GrayWaveletBoundaryCalibration"
 
 
 def infer_modality_from_path(path):
@@ -147,16 +148,12 @@ def train(model, loader, optimizer, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_part_sums = {
-        "loss_final": 0.0,
-        "loss_focal_tversky": 0.0,
-        "loss_band": 0.0,
-        "loss_ugel": 0.0,
-        "loss_background": 0.0,
-        "loss_exclusivity": 0.0,
-        "loss_hard_negative": 0.0,
-        "loss_consistency": 0.0
-    }
+    epoch_loss_aux = 0.0
+    epoch_loss_final = 0.0
+    epoch_loss_ft = 0.0
+    epoch_loss_band = 0.0
+    epoch_loss_gray = 0.0
+    epoch_loss_consistency = 0.0
 
     for x, y, modalities in loader:
         x = x.to(device, dtype=torch.float32)
@@ -180,8 +177,12 @@ def train(model, loader, optimizer, device):
 
         epoch_loss += loss.item()
 
-        for key in loss_part_sums.keys():
-            loss_part_sums[key] += out[key].item()
+        epoch_loss_aux += out["loss_aux"].item()
+        epoch_loss_final += out["loss_final"].item()
+        epoch_loss_ft += out["loss_focal_tversky"].item()
+        epoch_loss_band += out["loss_band"].item()
+        epoch_loss_gray += out["loss_gray_wavelet"].item()
+        epoch_loss_consistency += out["loss_consistency"].item()
 
         batch_jac = []
         batch_f1 = []
@@ -212,8 +213,12 @@ def train(model, loader, optimizer, device):
     epoch_precision /= n_batches
 
     loss_parts = {
-        key: value / n_batches
-        for key, value in loss_part_sums.items()
+        "loss_aux": epoch_loss_aux / n_batches,
+        "loss_final": epoch_loss_final / n_batches,
+        "loss_focal_tversky": epoch_loss_ft / n_batches,
+        "loss_band": epoch_loss_band / n_batches,
+        "loss_gray_wavelet": epoch_loss_gray / n_batches,
+        "loss_consistency": epoch_loss_consistency / n_batches
     }
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
@@ -228,16 +233,12 @@ def evaluate(model, loader, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_part_sums = {
-        "loss_final": 0.0,
-        "loss_focal_tversky": 0.0,
-        "loss_band": 0.0,
-        "loss_ugel": 0.0,
-        "loss_background": 0.0,
-        "loss_exclusivity": 0.0,
-        "loss_hard_negative": 0.0,
-        "loss_consistency": 0.0
-    }
+    epoch_loss_aux = 0.0
+    epoch_loss_final = 0.0
+    epoch_loss_ft = 0.0
+    epoch_loss_band = 0.0
+    epoch_loss_gray = 0.0
+    epoch_loss_consistency = 0.0
 
     with torch.no_grad():
         for x, y, modalities in loader:
@@ -257,8 +258,12 @@ def evaluate(model, loader, device):
 
             epoch_loss += loss.item()
 
-            for key in loss_part_sums.keys():
-                loss_part_sums[key] += out[key].item()
+            epoch_loss_aux += out["loss_aux"].item()
+            epoch_loss_final += out["loss_final"].item()
+            epoch_loss_ft += out["loss_focal_tversky"].item()
+            epoch_loss_band += out["loss_band"].item()
+            epoch_loss_gray += out["loss_gray_wavelet"].item()
+            epoch_loss_consistency += out["loss_consistency"].item()
 
             batch_jac = []
             batch_f1 = []
@@ -289,8 +294,12 @@ def evaluate(model, loader, device):
     epoch_precision /= n_batches
 
     loss_parts = {
-        key: value / n_batches
-        for key, value in loss_part_sums.items()
+        "loss_aux": epoch_loss_aux / n_batches,
+        "loss_final": epoch_loss_final / n_batches,
+        "loss_focal_tversky": epoch_loss_ft / n_batches,
+        "loss_band": epoch_loss_band / n_batches,
+        "loss_gray_wavelet": epoch_loss_gray / n_batches,
+        "loss_consistency": epoch_loss_consistency / n_batches
     }
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
@@ -303,7 +312,8 @@ def run_experiment(path):
     current_center = infer_center_from_path(path)
 
     experiment_name = (
-        f"{EXPERIMENT_NAME_BASE}_center_{current_center}_{current_modality}"
+        f"FocusNet_DGFR_BandHead_GrayWaveletBoundaryCalibration_"
+        f"center_{current_center}_{current_modality}"
     )
 
     create_dir("files")
@@ -311,7 +321,7 @@ def run_experiment(path):
 
     train_log_path = (
         f"files/center_wise/{model_name}/"
-        f"train_log_{current_center}_{current_modality}_{EXPERIMENT_SLUG}.txt"
+        f"train_log_{current_center}_{current_modality}_{EXPERIMENT_SUFFIX}.txt"
     )
 
     with open(train_log_path, "w") as train_log:
@@ -332,7 +342,7 @@ def run_experiment(path):
 
     checkpoint_path = (
         f"files/center_wise/{model_name}/"
-        f"checkpoint_{current_center}_{current_modality}_{EXPERIMENT_SLUG}.pth"
+        f"checkpoint_{current_center}_{current_modality}_{EXPERIMENT_SUFFIX}.pth"
     )
 
     wandb.init(
@@ -352,13 +362,13 @@ def run_experiment(path):
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
-            "loss": "DiceBCE + FocalTversky + Band + UGEL + DualSupervisedBackground + Exclusivity + HardNegative"
+            "loss": "Internal DiceBCE + Weighted Final + FocalTversky + Band + GrayWaveletBoundaryCalibration"
         }
     )
 
     data_str = f"Experiment: {experiment_name}\n"
     data_str += f"Variant: {VARIANT_NAME}\n"
-    data_str += "Setting: center_wise\n"
+    data_str += f"Setting: center_wise\n"
     data_str += f"Center: {current_center}\n"
     data_str += f"Modality: {current_modality}\n"
     data_str += f"Image Size: {size}\n"
@@ -376,9 +386,9 @@ def run_experiment(path):
 
     data_str = "Dataset Size:\n"
     data_str += (
-        f"Train: {len(train_samples)} "
-        f"- Valid: {len(valid_samples)} "
-        f"- Test: {len(test_samples)}\n"
+        f"Train: {len(train_samples)} - "
+        f"Valid: {len(valid_samples)} - "
+        f"Test: {len(test_samples)}\n"
     )
 
     print_and_save(train_log_path, data_str)
@@ -388,20 +398,29 @@ def run_experiment(path):
             train_log_path,
             f"Skipping {current_center}/{current_modality}: empty train or validation split.\n"
         )
-
         wandb.finish()
-
         return
 
     transform = A.Compose([
         A.Rotate(limit=35, p=0.3),
         A.HorizontalFlip(p=0.3),
         A.VerticalFlip(p=0.3),
+        A.RandomBrightnessContrast(
+            brightness_limit=0.15,
+            contrast_limit=0.15,
+            p=0.20
+        ),
+        A.HueSaturationValue(
+            hue_shift_limit=8,
+            sat_shift_limit=12,
+            val_shift_limit=8,
+            p=0.15
+        ),
         A.CoarseDropout(
             max_holes=8,
             max_height=24,
             max_width=24,
-            p=0.25
+            p=0.20
         )
     ])
 
@@ -454,9 +473,14 @@ def run_experiment(path):
         verbose=True
     )
 
+    loss_name = (
+        "Internal DiceBCE + Weighted Final + FocalTversky + "
+        "Band + GrayWaveletBoundaryCalibration"
+    )
+
     data_str = "Optimizer: AdamW\n"
     data_str += "Scheduler: ReduceLROnPlateau\n"
-    data_str += "Loss: Internal composite loss with UGEL + Dual-Supervised Reverse Background Calibration\n"
+    data_str += f"Loss: {loss_name}\n"
 
     print_and_save(train_log_path, data_str)
 
@@ -498,7 +522,7 @@ def run_experiment(path):
         else:
             early_stopping_count += 1
 
-        log_data = {
+        wandb.log({
             "epoch": epoch + 1,
             "lr": current_lr,
 
@@ -514,21 +538,30 @@ def run_experiment(path):
             "valid/recall": valid_metrics[2],
             "valid/precision": valid_metrics[3],
 
+            "train/loss_aux": train_loss_parts["loss_aux"],
+            "train/loss_final": train_loss_parts["loss_final"],
+            "train/loss_focal_tversky": train_loss_parts["loss_focal_tversky"],
+            "train/loss_band": train_loss_parts["loss_band"],
+            "train/loss_gray_wavelet": train_loss_parts["loss_gray_wavelet"],
+            "train/loss_consistency": train_loss_parts["loss_consistency"],
+
+            "valid/loss_aux": valid_loss_parts["loss_aux"],
+            "valid/loss_final": valid_loss_parts["loss_final"],
+            "valid/loss_focal_tversky": valid_loss_parts["loss_focal_tversky"],
+            "valid/loss_band": valid_loss_parts["loss_band"],
+            "valid/loss_gray_wavelet": valid_loss_parts["loss_gray_wavelet"],
+            "valid/loss_consistency": valid_loss_parts["loss_consistency"],
+
             "best_valid_f1": best_valid_f1
-        }
-
-        for key, value in train_loss_parts.items():
-            log_data[f"train/{key}"] = value
-
-        for key, value in valid_loss_parts.items():
-            log_data[f"valid/{key}"] = value
-
-        wandb.log(log_data)
+        })
 
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-        data_str = f"Epoch: {epoch + 1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n"
+        data_str = (
+            f"Epoch: {epoch + 1:02} | "
+            f"Epoch Time: {epoch_mins}m {epoch_secs}s\n"
+        )
 
         data_str += (
             f"\tTrain Loss: {train_loss:.4f} "
@@ -548,13 +581,11 @@ def run_experiment(path):
 
         data_str += (
             f"\t Valid Loss Parts "
+            f"- Aux: {valid_loss_parts['loss_aux']:.4f} "
             f"- Final: {valid_loss_parts['loss_final']:.4f} "
             f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
             f"- Band: {valid_loss_parts['loss_band']:.4f} "
-            f"- UGEL: {valid_loss_parts['loss_ugel']:.4f} "
-            f"- BG: {valid_loss_parts['loss_background']:.4f} "
-            f"- Exclusivity: {valid_loss_parts['loss_exclusivity']:.4f} "
-            f"- HardNeg: {valid_loss_parts['loss_hard_negative']:.4f} "
+            f"- GrayWavelet: {valid_loss_parts['loss_gray_wavelet']:.4f} "
             f"- Consistency: {valid_loss_parts['loss_consistency']:.4f}\n"
         )
 

@@ -122,6 +122,14 @@ Precision: 0.7056 (vs Paper: -0.1348, -16.04%)
 Accuracy: 0.9837 (vs Paper: -0.0050, -0.51%)
 F2: 0.8410 (vs Paper: +0.0066, +0.79%)
 
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.6851 (vs Paper: -0.0609, -8.16%)
+mDSC/F1: 0.7910 (vs Paper: -0.0337, -4.09%)
+Recall: 0.9188 (vs Paper: +0.0716, +8.45%)
+Precision: 0.7166 (vs Paper: -0.1238, -14.73%)
+Accuracy: 0.9858 (vs Paper: -0.0029, -0.29%)
+F2: 0.8571 (vs Paper: +0.0227, +2.72%)
+
 FICE
 
 Paper
@@ -243,6 +251,14 @@ Recall: 0.9353 (vs Paper: +0.0551, +6.26%)
 Precision: 0.6018 (vs Paper: -0.3067, -33.76%)
 Accuracy: 0.9659 (vs Paper: -0.0255, -2.57%)
 F2: 0.8242 (vs Paper: -0.0564, -6.40%)
+
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.7804 (vs Paper: -0.0449, -5.44%)
+mDSC/F1: 0.8609 (vs Paper: -0.0237, -2.68%)
+Recall: 0.9388 (vs Paper: +0.0586, +6.66%)
+Precision: 0.8047 (vs Paper: -0.1038, -11.43%)
+Accuracy: 0.9882 (vs Paper: -0.0032, -0.32%)
+F2: 0.9041 (vs Paper: +0.0235, +2.67%)
 
 LCI
 
@@ -366,6 +382,14 @@ Precision: 0.7384 (vs Paper: -0.1798, -19.58%)
 Accuracy: 0.9833 (vs Paper: -0.0108, -1.09%)
 F2: 0.8967 (vs Paper: -0.0325, -3.50%)
 
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.8666 (vs Paper: +0.0053, +0.62%)
+mDSC/F1: 0.9226 (vs Paper: +0.0022, +0.24%)
+Recall: 0.9536 (vs Paper: +0.0158, +1.68%)
+Precision: 0.9078 (vs Paper: -0.0104, -1.13%)
+Accuracy: 0.9911 (vs Paper: -0.0030, -0.30%)
+F2: 0.9399 (vs Paper: +0.0107, +1.15%)
+
 NBI
 
 Paper
@@ -488,6 +512,14 @@ Precision: 0.7539 (vs Paper: -0.1047, -12.19%)
 Accuracy: 0.9669 (vs Paper: -0.0078, -0.80%)
 F2: 0.7833 (vs Paper: -0.0408, -4.95%)
 
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.8112 (vs Paper: +0.0645, +8.64%)
+mDSC/F1: 0.8806 (vs Paper: +0.0597, +7.27%)
+Recall: 0.9282 (vs Paper: +0.0967, +11.63%)
+Precision: 0.8560 (vs Paper: -0.0026, -0.30%)
+Accuracy: 0.9809 (vs Paper: +0.0062, +0.64%)
+F2: 0.9065 (vs Paper: +0.0824, +10.00%)
+
 WLI
 
 Paper
@@ -609,3 +641,11 @@ Recall: 0.9298 (vs Paper: -0.0020, -0.21%)
 Precision: 0.9517 (vs Paper: +0.0040, +0.42%)
 Accuracy: 0.9858 (vs Paper: +0.0000, +0.00%)
 F2: 0.9307 (vs Paper: -0.0007, -0.08%)
+
+DGFR + Band Head + Gray Wavelet Boundary Calibration
+mIoU/Jaccard: 0.8912 (vs Paper: +0.0050, +0.56%)
+mDSC/F1: 0.9379 (vs Paper: +0.0037, +0.40%)
+Recall: 0.9351 (vs Paper: +0.0033, +0.35%)
+Precision: 0.9503 (vs Paper: +0.0026, +0.27%)
+Accuracy: 0.9872 (vs Paper: +0.0014, +0.14%)
+F2: 0.9349 (vs Paper: +0.0035, +0.38%)

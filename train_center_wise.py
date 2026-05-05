@@ -1,25 +1,25 @@
 import os
 import time
 import datetime
+import random
+from glob import glob
+
+import cv2
 import numpy as np
 import albumentations as A
-import cv2
-
-from glob import glob
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 
 import wandb
-
 from sklearn.utils import shuffle
 
-from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 from model.FocusNet import FocusNet
+from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 
 
-EXPERIMENT_SUFFIX = "gray_wavelet_boundary_calibration"
-VARIANT_NAME = "DGFR+BandHead+GrayWaveletBoundaryCalibration"
+EXPERIMENT_TAG = "ugel_freqampmix"
+VARIANT_NAME = "DGFR+BandHead+UGEL+FreqAmpMix"
 
 
 def infer_modality_from_path(path):
@@ -40,7 +40,8 @@ def infer_modality_from_path(path):
 
 
 def infer_center_from_path(path):
-    parts = str(path).replace("\\", "/").split("/")
+    p = str(path).replace("\\", "/")
+    parts = p.split("/")
 
     if "PolypDB_center_wise" in parts:
         idx = parts.index("PolypDB_center_wise")
@@ -56,14 +57,13 @@ def load_polypdb_center_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
-
     images = images_jpg + images_png
 
     for image_path in images:
         image_name = os.path.splitext(os.path.basename(image_path))[0]
 
-        mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
         mask_png = os.path.join(path, "masks", f"{image_name}.png")
+        mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
 
         if os.path.exists(mask_png):
             mask_path = mask_png
@@ -85,14 +85,77 @@ def load_polypdb_center_data(path):
     return train_samples, valid_samples, test_samples
 
 
+def freq_amp_mix(image, reference_image, alpha=0.25, low_freq_ratio=0.10):
+    """
+    Frequency amplitude mixing:
+    - keeps current image phase = structure preserved
+    - mixes low-frequency amplitude from another image = color/illumination/style robustness
+    """
+    image = image.astype(np.float32) / 255.0
+    reference_image = reference_image.astype(np.float32) / 255.0
+
+    mixed = np.zeros_like(image, dtype=np.float32)
+
+    h, w, c = image.shape
+    radius = max(1, int(min(h, w) * low_freq_ratio))
+    center_h, center_w = h // 2, w // 2
+
+    y1 = max(0, center_h - radius)
+    y2 = min(h, center_h + radius)
+    x1 = max(0, center_w - radius)
+    x2 = min(w, center_w + radius)
+
+    for ch in range(c):
+        src_fft = np.fft.fft2(image[:, :, ch])
+        ref_fft = np.fft.fft2(reference_image[:, :, ch])
+
+        src_amp = np.abs(src_fft)
+        src_phase = np.angle(src_fft)
+
+        ref_amp = np.abs(ref_fft)
+
+        src_amp_shift = np.fft.fftshift(src_amp)
+        ref_amp_shift = np.fft.fftshift(ref_amp)
+
+        src_amp_shift[y1:y2, x1:x2] = (
+            (1.0 - alpha) * src_amp_shift[y1:y2, x1:x2]
+            + alpha * ref_amp_shift[y1:y2, x1:x2]
+        )
+
+        src_amp_mixed = np.fft.ifftshift(src_amp_shift)
+        mixed_fft = src_amp_mixed * np.exp(1j * src_phase)
+
+        channel = np.fft.ifft2(mixed_fft).real
+        mixed[:, :, ch] = channel
+
+    mixed = np.clip(mixed, 0.0, 1.0)
+    mixed = (mixed * 255.0).astype(np.uint8)
+
+    return mixed
+
+
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None):
+    def __init__(
+        self,
+        samples_path,
+        size,
+        transform=None,
+        use_freqampmix=False,
+        freqampmix_p=0.35,
+        alpha_range=(0.15, 0.35),
+        low_freq_ratio=0.10
+    ):
         super().__init__()
 
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
+
+        self.use_freqampmix = use_freqampmix
+        self.freqampmix_p = freqampmix_p
+        self.alpha_range = alpha_range
+        self.low_freq_ratio = low_freq_ratio
 
     def __getitem__(self, index):
         image_path = self.samples_path[index][0]
@@ -112,17 +175,29 @@ class PolypDB_DATASET(Dataset):
             image = augmentations["image"]
             mask = augmentations["mask"]
 
-        image = cv2.resize(
-            image,
-            self.size,
-            interpolation=cv2.INTER_LINEAR
-        )
+        image = cv2.resize(image, self.size, interpolation=cv2.INTER_LINEAR)
+        mask = cv2.resize(mask, self.size, interpolation=cv2.INTER_NEAREST)
 
-        mask = cv2.resize(
-            mask,
-            self.size,
-            interpolation=cv2.INTER_NEAREST
-        )
+        if self.use_freqampmix and random.random() < self.freqampmix_p and self.n_samples > 1:
+            ref_index = random.randint(0, self.n_samples - 1)
+
+            if ref_index == index:
+                ref_index = (ref_index + 1) % self.n_samples
+
+            ref_image_path = self.samples_path[ref_index][0]
+            ref_image = cv2.imread(ref_image_path, cv2.IMREAD_COLOR)
+
+            if ref_image is not None:
+                ref_image = cv2.resize(ref_image, self.size, interpolation=cv2.INTER_LINEAR)
+
+                alpha = random.uniform(self.alpha_range[0], self.alpha_range[1])
+
+                image = freq_amp_mix(
+                    image=image,
+                    reference_image=ref_image,
+                    alpha=alpha,
+                    low_freq_ratio=self.low_freq_ratio
+                )
 
         image = np.transpose(image, (2, 0, 1))
         image = image.astype(np.float32) / 255.0
@@ -139,6 +214,24 @@ class PolypDB_DATASET(Dataset):
         return self.n_samples
 
 
+def get_loss_part(out, key):
+    if key in out:
+        return out[key].item()
+
+    aliases = {
+        "loss_ugel": ["loss_soft_ugel", "loss_uncertainty_edge", "loss_edge"],
+        "loss_focal_tversky": ["loss_ft", "loss_tversky"],
+        "loss_band": ["band_loss"],
+        "loss_final": ["loss_dice_bce", "loss_main"]
+    }
+
+    for alias in aliases.get(key, []):
+        if alias in out:
+            return out[alias].item()
+
+    return 0.0
+
+
 def train(model, loader, optimizer, device):
     model.train()
 
@@ -148,12 +241,10 @@ def train(model, loader, optimizer, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    epoch_loss_aux = 0.0
     epoch_loss_final = 0.0
     epoch_loss_ft = 0.0
     epoch_loss_band = 0.0
-    epoch_loss_gray = 0.0
-    epoch_loss_consistency = 0.0
+    epoch_loss_ugel = 0.0
 
     for x, y, modalities in loader:
         x = x.to(device, dtype=torch.float32)
@@ -177,19 +268,17 @@ def train(model, loader, optimizer, device):
 
         epoch_loss += loss.item()
 
-        epoch_loss_aux += out["loss_aux"].item()
-        epoch_loss_final += out["loss_final"].item()
-        epoch_loss_ft += out["loss_focal_tversky"].item()
-        epoch_loss_band += out["loss_band"].item()
-        epoch_loss_gray += out["loss_gray_wavelet"].item()
-        epoch_loss_consistency += out["loss_consistency"].item()
+        epoch_loss_final += get_loss_part(out, "loss_final")
+        epoch_loss_ft += get_loss_part(out, "loss_focal_tversky")
+        epoch_loss_band += get_loss_part(out, "loss_band")
+        epoch_loss_ugel += get_loss_part(out, "loss_ugel")
+
+        y_pred = torch.sigmoid(y_pred)
 
         batch_jac = []
         batch_f1 = []
         batch_recall = []
         batch_precision = []
-
-        y_pred = torch.sigmoid(y_pred)
 
         for yt, yp in zip(y, y_pred):
             score = calculate_metrics(yt, yp)
@@ -206,22 +295,23 @@ def train(model, loader, optimizer, device):
 
     n_batches = len(loader)
 
-    epoch_loss /= n_batches
-    epoch_jac /= n_batches
-    epoch_f1 /= n_batches
-    epoch_recall /= n_batches
-    epoch_precision /= n_batches
-
     loss_parts = {
-        "loss_aux": epoch_loss_aux / n_batches,
         "loss_final": epoch_loss_final / n_batches,
         "loss_focal_tversky": epoch_loss_ft / n_batches,
         "loss_band": epoch_loss_band / n_batches,
-        "loss_gray_wavelet": epoch_loss_gray / n_batches,
-        "loss_consistency": epoch_loss_consistency / n_batches
+        "loss_ugel": epoch_loss_ugel / n_batches
     }
 
-    return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
+    return (
+        epoch_loss / n_batches,
+        [
+            epoch_jac / n_batches,
+            epoch_f1 / n_batches,
+            epoch_recall / n_batches,
+            epoch_precision / n_batches
+        ],
+        loss_parts
+    )
 
 
 def evaluate(model, loader, device):
@@ -233,12 +323,10 @@ def evaluate(model, loader, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    epoch_loss_aux = 0.0
     epoch_loss_final = 0.0
     epoch_loss_ft = 0.0
     epoch_loss_band = 0.0
-    epoch_loss_gray = 0.0
-    epoch_loss_consistency = 0.0
+    epoch_loss_ugel = 0.0
 
     with torch.no_grad():
         for x, y, modalities in loader:
@@ -258,19 +346,17 @@ def evaluate(model, loader, device):
 
             epoch_loss += loss.item()
 
-            epoch_loss_aux += out["loss_aux"].item()
-            epoch_loss_final += out["loss_final"].item()
-            epoch_loss_ft += out["loss_focal_tversky"].item()
-            epoch_loss_band += out["loss_band"].item()
-            epoch_loss_gray += out["loss_gray_wavelet"].item()
-            epoch_loss_consistency += out["loss_consistency"].item()
+            epoch_loss_final += get_loss_part(out, "loss_final")
+            epoch_loss_ft += get_loss_part(out, "loss_focal_tversky")
+            epoch_loss_band += get_loss_part(out, "loss_band")
+            epoch_loss_ugel += get_loss_part(out, "loss_ugel")
+
+            y_pred = torch.sigmoid(y_pred)
 
             batch_jac = []
             batch_f1 = []
             batch_recall = []
             batch_precision = []
-
-            y_pred = torch.sigmoid(y_pred)
 
             for yt, yp in zip(y, y_pred):
                 score = calculate_metrics(yt, yp)
@@ -287,41 +373,39 @@ def evaluate(model, loader, device):
 
     n_batches = len(loader)
 
-    epoch_loss /= n_batches
-    epoch_jac /= n_batches
-    epoch_f1 /= n_batches
-    epoch_recall /= n_batches
-    epoch_precision /= n_batches
-
     loss_parts = {
-        "loss_aux": epoch_loss_aux / n_batches,
         "loss_final": epoch_loss_final / n_batches,
         "loss_focal_tversky": epoch_loss_ft / n_batches,
         "loss_band": epoch_loss_band / n_batches,
-        "loss_gray_wavelet": epoch_loss_gray / n_batches,
-        "loss_consistency": epoch_loss_consistency / n_batches
+        "loss_ugel": epoch_loss_ugel / n_batches
     }
 
-    return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
+    return (
+        epoch_loss / n_batches,
+        [
+            epoch_jac / n_batches,
+            epoch_f1 / n_batches,
+            epoch_recall / n_batches,
+            epoch_precision / n_batches
+        ],
+        loss_parts
+    )
 
 
 def run_experiment(path):
     model_name = "FocusNet"
 
-    current_modality = infer_modality_from_path(path)
     current_center = infer_center_from_path(path)
+    current_modality = infer_modality_from_path(path)
 
-    experiment_name = (
-        f"FocusNet_DGFR_BandHead_GrayWaveletBoundaryCalibration_"
-        f"center_{current_center}_{current_modality}"
-    )
+    experiment_name = f"FocusNet_DGFR_BandHead_UGEL_FreqAmpMix_center_{current_center}_{current_modality}"
 
     create_dir("files")
     create_dir(f"files/center_wise/{model_name}")
 
     train_log_path = (
         f"files/center_wise/{model_name}/"
-        f"train_log_{current_center}_{current_modality}_{EXPERIMENT_SUFFIX}.txt"
+        f"train_log_{current_center}_{current_modality}_{EXPERIMENT_TAG}.txt"
     )
 
     with open(train_log_path, "w") as train_log:
@@ -342,7 +426,7 @@ def run_experiment(path):
 
     checkpoint_path = (
         f"files/center_wise/{model_name}/"
-        f"checkpoint_{current_center}_{current_modality}_{EXPERIMENT_SUFFIX}.pth"
+        f"checkpoint_{current_center}_{current_modality}_{EXPERIMENT_TAG}.pth"
     )
 
     wandb.init(
@@ -362,12 +446,17 @@ def run_experiment(path):
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
-            "loss": "Internal DiceBCE + Weighted Final + FocalTversky + Band + GrayWaveletBoundaryCalibration"
+            "freqampmix_p": 0.35,
+            "freqampmix_alpha_range": "0.15-0.35",
+            "freqampmix_low_freq_ratio": 0.10,
+            "loss": "Internal DiceBCE + FocalTversky + Band + UGEL",
+            "augmentation": "Spatial aug + FreqAmpMix"
         }
     )
 
     data_str = f"Experiment: {experiment_name}\n"
     data_str += f"Variant: {VARIANT_NAME}\n"
+    data_str += f"Commit name: dgfr_bandhead_ugel_freqampmix\n"
     data_str += f"Setting: center_wise\n"
     data_str += f"Center: {current_center}\n"
     data_str += f"Modality: {current_modality}\n"
@@ -378,6 +467,7 @@ def run_experiment(path):
     data_str += f"Epochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
     data_str += f"Path: {path}\n"
+    data_str += f"FreqAmpMix: p=0.35, alpha=(0.15, 0.35), low_freq_ratio=0.10\n"
 
     print_and_save(train_log_path, data_str)
 
@@ -385,11 +475,7 @@ def run_experiment(path):
     train_samples = shuffle(train_samples, random_state=42)
 
     data_str = "Dataset Size:\n"
-    data_str += (
-        f"Train: {len(train_samples)} - "
-        f"Valid: {len(valid_samples)} - "
-        f"Test: {len(test_samples)}\n"
-    )
+    data_str += f"Train: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
 
     print_and_save(train_log_path, data_str)
 
@@ -398,6 +484,7 @@ def run_experiment(path):
             train_log_path,
             f"Skipping {current_center}/{current_modality}: empty train or validation split.\n"
         )
+
         wandb.finish()
         return
 
@@ -405,35 +492,29 @@ def run_experiment(path):
         A.Rotate(limit=35, p=0.3),
         A.HorizontalFlip(p=0.3),
         A.VerticalFlip(p=0.3),
-        A.RandomBrightnessContrast(
-            brightness_limit=0.15,
-            contrast_limit=0.15,
-            p=0.20
-        ),
-        A.HueSaturationValue(
-            hue_shift_limit=8,
-            sat_shift_limit=12,
-            val_shift_limit=8,
-            p=0.15
-        ),
         A.CoarseDropout(
             max_holes=8,
             max_height=24,
             max_width=24,
-            p=0.20
+            p=0.25
         )
     ])
 
     train_dataset = PolypDB_DATASET(
         samples_path=train_samples,
         size=size,
-        transform=transform
+        transform=transform,
+        use_freqampmix=True,
+        freqampmix_p=0.35,
+        alpha_range=(0.15, 0.35),
+        low_freq_ratio=0.10
     )
 
     valid_dataset = PolypDB_DATASET(
         samples_path=valid_samples,
         size=size,
-        transform=None
+        transform=None,
+        use_freqampmix=False
     )
 
     train_loader = DataLoader(
@@ -473,14 +554,10 @@ def run_experiment(path):
         verbose=True
     )
 
-    loss_name = (
-        "Internal DiceBCE + Weighted Final + FocalTversky + "
-        "Band + GrayWaveletBoundaryCalibration"
-    )
-
     data_str = "Optimizer: AdamW\n"
     data_str += "Scheduler: ReduceLROnPlateau\n"
-    data_str += f"Loss: {loss_name}\n"
+    data_str += "Loss: Internal DiceBCE + FocalTversky + Band + UGEL\n"
+    data_str += "Important: FreqAmpMix is augmentation only, not an extra loss.\n"
 
     print_and_save(train_log_path, data_str)
 
@@ -538,19 +615,15 @@ def run_experiment(path):
             "valid/recall": valid_metrics[2],
             "valid/precision": valid_metrics[3],
 
-            "train/loss_aux": train_loss_parts["loss_aux"],
             "train/loss_final": train_loss_parts["loss_final"],
             "train/loss_focal_tversky": train_loss_parts["loss_focal_tversky"],
             "train/loss_band": train_loss_parts["loss_band"],
-            "train/loss_gray_wavelet": train_loss_parts["loss_gray_wavelet"],
-            "train/loss_consistency": train_loss_parts["loss_consistency"],
+            "train/loss_ugel": train_loss_parts["loss_ugel"],
 
-            "valid/loss_aux": valid_loss_parts["loss_aux"],
             "valid/loss_final": valid_loss_parts["loss_final"],
             "valid/loss_focal_tversky": valid_loss_parts["loss_focal_tversky"],
             "valid/loss_band": valid_loss_parts["loss_band"],
-            "valid/loss_gray_wavelet": valid_loss_parts["loss_gray_wavelet"],
-            "valid/loss_consistency": valid_loss_parts["loss_consistency"],
+            "valid/loss_ugel": valid_loss_parts["loss_ugel"],
 
             "best_valid_f1": best_valid_f1
         })
@@ -558,10 +631,7 @@ def run_experiment(path):
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-        data_str = (
-            f"Epoch: {epoch + 1:02} | "
-            f"Epoch Time: {epoch_mins}m {epoch_secs}s\n"
-        )
+        data_str = f"Epoch: {epoch + 1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n"
 
         data_str += (
             f"\tTrain Loss: {train_loss:.4f} "
@@ -581,12 +651,10 @@ def run_experiment(path):
 
         data_str += (
             f"\t Valid Loss Parts "
-            f"- Aux: {valid_loss_parts['loss_aux']:.4f} "
             f"- Final: {valid_loss_parts['loss_final']:.4f} "
             f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
             f"- Band: {valid_loss_parts['loss_band']:.4f} "
-            f"- GrayWavelet: {valid_loss_parts['loss_gray_wavelet']:.4f} "
-            f"- Consistency: {valid_loss_parts['loss_consistency']:.4f}\n"
+            f"- UGEL: {valid_loss_parts['loss_ugel']:.4f}\n"
         )
 
         print_and_save(train_log_path, data_str)

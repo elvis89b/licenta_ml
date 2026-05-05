@@ -130,6 +130,14 @@ Precision: 0.9413 (vs Paper: +0.0007, +0.07%)
 Accuracy: 0.9818 (vs Paper: +0.0010, +0.10%)
 F2: 0.9256 (vs Paper: +0.0040, +0.43%)
 
+DGFR + Band Head + UGEL + FreqAmpMix
+mIoU/Jaccard: 0.8800 (vs Paper: +0.0088, +1.01%)
+mDSC/F1: 0.9297 (vs Paper: +0.0067, +0.73%)
+Recall: 0.9319 (vs Paper: +0.0080, +0.87%)
+Precision: 0.9420 (vs Paper: +0.0014, +0.15%)
+Accuracy: 0.9815 (vs Paper: +0.0007, +0.07%)
+F2: 0.9299 (vs Paper: +0.0083, +0.90%)
+
 BKAI
 
 Paper
@@ -259,6 +267,14 @@ Recall: 0.9279 (vs Paper: -0.0035, -0.38%)
 Precision: 0.8951 (vs Paper: -0.0186, -2.04%)
 Accuracy: 0.9925 (vs Paper: +0.0004, +0.04%)
 F2: 0.9143 (vs Paper: -0.0058, -0.63%)
+
+DGFR + Band Head + UGEL + FreqAmpMix
+mIoU/Jaccard: 0.8475 (vs Paper: -0.0139, -1.61%)
+mDSC/F1: 0.8975 (vs Paper: -0.0152, -1.67%)
+Recall: 0.9100 (vs Paper: -0.0214, -2.30%)
+Precision: 0.9027 (vs Paper: -0.0110, -1.20%)
+Accuracy: 0.9921 (vs Paper: +0.0000, +0.00%)
+F2: 0.9008 (vs Paper: -0.0193, -2.10%)
 
 Karolinska
 
@@ -397,3 +413,11 @@ Recall: 0.9751 (vs Paper: +0.0340, +3.61%)
 Precision: 0.7793 (vs Paper: -0.1808, -18.83%)
 Accuracy: 0.9776 (vs Paper: -0.0123, -1.24%)
 F2: 0.9244 (vs Paper: -0.0181, -1.92%)
+
+DGFR + Band Head + UGEL + FreqAmpMix
+mIoU/Jaccard: 0.8330 (vs Paper: -0.0711, -7.86%)
+mDSC/F1: 0.9085 (vs Paper: -0.0379, -4.00%)
+Recall: 0.9599 (vs Paper: +0.0188, +2.00%)
+Precision: 0.8633 (vs Paper: -0.0968, -10.08%)
+Accuracy: 0.9852 (vs Paper: -0.0047, -0.47%)
+F2: 0.9386 (vs Paper: -0.0039, -0.41%)

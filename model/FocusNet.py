@@ -100,6 +100,46 @@ class FocalTverskyLoss(nn.Module):
         return loss.mean()
 
 
+class UncertaintyGatedEdgeLoss(nn.Module):
+    def __init__(self, smooth=1.0):
+        super().__init__()
+        self.smooth = smooth
+
+    def forward(self, logits, targets, band_target, uncertainty_map):
+        probs = torch.sigmoid(logits)
+
+        edge_gate = torch.clamp(
+            band_target * (1.0 + 2.0 * uncertainty_map),
+            min=0.0,
+            max=3.0
+        )
+
+        bce = F.binary_cross_entropy_with_logits(
+            logits,
+            targets,
+            reduction="none"
+        )
+
+        bce = (bce * edge_gate).sum() / (edge_gate.sum() + 1e-6)
+
+        dims = (1, 2, 3)
+
+        intersection = (edge_gate * probs * targets).sum(dim=dims)
+
+        denominator = (
+            (edge_gate * probs).sum(dim=dims)
+            + (edge_gate * targets).sum(dim=dims)
+        )
+
+        dice = 1.0 - (2.0 * intersection + self.smooth) / (
+            denominator + self.smooth
+        )
+
+        dice = dice.mean()
+
+        return bce + dice
+
+
 class _ASPPModuleDeformable(nn.Module):
     def __init__(self, in_channels, planes, kernel_size, padding):
         super(_ASPPModuleDeformable, self).__init__()
@@ -385,88 +425,6 @@ class CIDM_A(nn.Module):
         return x, out
 
 
-class GrayWaveletBoundaryPrior(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        ll = torch.tensor(
-            [[0.5, 0.5], [0.5, 0.5]],
-            dtype=torch.float32
-        )
-
-        lh = torch.tensor(
-            [[-0.5, -0.5], [0.5, 0.5]],
-            dtype=torch.float32
-        )
-
-        hl = torch.tensor(
-            [[-0.5, 0.5], [-0.5, 0.5]],
-            dtype=torch.float32
-        )
-
-        hh = torch.tensor(
-            [[0.5, -0.5], [-0.5, 0.5]],
-            dtype=torch.float32
-        )
-
-        haar = torch.stack([lh, hl, hh], dim=0).unsqueeze(1)
-
-        self.register_buffer("haar_high_filters", haar)
-
-    def normalize(self, x):
-        x_min = x.amin(dim=(2, 3), keepdim=True)
-        x_max = x.amax(dim=(2, 3), keepdim=True)
-
-        x = (x - x_min) / (x_max - x_min + 1e-6)
-
-        return torch.clamp(x, 0.0, 1.0)
-
-    def rgb_to_gray(self, image):
-        r = image[:, 0:1, :, :]
-        g = image[:, 1:2, :, :]
-        b = image[:, 2:3, :, :]
-
-        gray = 0.299 * r + 0.587 * g + 0.114 * b
-
-        return gray
-
-    def forward(self, image, target_size):
-        gray = self.rgb_to_gray(image)
-
-        h, w = gray.shape[-2:]
-
-        if h % 2 != 0:
-            gray = gray[:, :, :-1, :]
-
-        if w % 2 != 0:
-            gray = gray[:, :, :, :-1]
-
-        high = F.conv2d(
-            gray,
-            self.haar_high_filters,
-            stride=2,
-            padding=0
-        )
-
-        high = torch.sqrt(
-            high[:, 0:1, :, :] ** 2
-            + high[:, 1:2, :, :] ** 2
-            + high[:, 2:3, :, :] ** 2
-            + 1e-6
-        )
-
-        high = F.interpolate(
-            high,
-            size=target_size,
-            mode="bilinear",
-            align_corners=False
-        )
-
-        high = self.normalize(high)
-
-        return high
-
-
 class FocusNet(nn.Module):
     def __init__(self, channel=32):
         super(FocusNet, self).__init__()
@@ -498,24 +456,26 @@ class FocusNet(nn.Module):
 
         self.attention = FocusAttention(channel, channel)
 
-        self.gray_wavelet_prior = GrayWaveletBoundaryPrior()
-
         self.seg_loss = DiceBCELoss()
         self.weighted_seg_loss = WeightedDiceBCELoss()
+
         self.focal_tversky_loss = FocalTverskyLoss(
             alpha=0.35,
             beta=0.65,
             gamma=0.75
         )
 
+        self.ugel_loss = UncertaintyGatedEdgeLoss()
+
         self.loss_w1 = 0.25
         self.loss_w2 = 0.25
         self.loss_w3 = 0.50
         self.loss_w4 = 0.50
+
         self.final_loss_weight = 1.00
         self.focal_tversky_weight = 0.15
         self.band_loss_weight = 0.25
-        self.gray_wavelet_loss_weight = 0.10
+        self.ugel_loss_weight = 0.20
         self.consistency_weight = 0.05
 
         self.band_head = nn.Sequential(
@@ -555,15 +515,17 @@ class FocusNet(nn.Module):
 
         return torch.clamp(band, 0.0, 1.0)
 
-    def normalize_uncertainty(self, u):
-        u = u.detach()
+    def normalize_uncertainty(self, uncertainty_map):
+        uncertainty_map = uncertainty_map.detach()
 
-        u_min = u.amin(dim=(2, 3), keepdim=True)
-        u_max = u.amax(dim=(2, 3), keepdim=True)
+        u_min = uncertainty_map.amin(dim=(2, 3), keepdim=True)
+        u_max = uncertainty_map.amax(dim=(2, 3), keepdim=True)
 
-        u = (u - u_min) / (u_max - u_min + 1e-6)
+        uncertainty_map = (uncertainty_map - u_min) / (
+            u_max - u_min + 1e-6
+        )
 
-        return torch.clamp(u, 0.0, 1.0)
+        return torch.clamp(uncertainty_map, 0.0, 1.0)
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
@@ -576,23 +538,6 @@ class FocusNet(nn.Module):
         )
 
         return (torch.abs(p1 - p2) * confidence).mean()
-
-    def gray_wavelet_calibration_loss(self, band_logits, band_target, gray_prior):
-        band_prob = torch.sigmoid(band_logits)
-
-        boundary_focus = torch.clamp(
-            band_target * gray_prior,
-            min=0.0,
-            max=1.0
-        )
-
-        error = torch.abs(band_prob - band_target)
-
-        loss = (error * boundary_focus).sum() / (
-            boundary_focus.sum() + 1e-6
-        )
-
-        return loss
 
     def forward(self, sample):
         x = sample["images"]
@@ -652,22 +597,11 @@ class FocusNet(nn.Module):
 
         band_target = self.make_band_target(y, kernel_size=7)
 
-        gray_prior = self.gray_wavelet_prior(
-            x,
-            target_size=base_size
-        )
-
-        boundary_weight = torch.clamp(
-            gray_prior * band_target,
-            min=0.0,
-            max=1.0
-        )
-
         pixel_weight = (
             1.0
             + 0.75 * band_target
-            + 0.50 * uncertainty_full
-            + 0.75 * boundary_weight
+            + 0.75 * uncertainty_full
+            + 0.50 * band_target * uncertainty_full
         )
 
         loss1 = self.seg_loss(out1, y)
@@ -693,13 +627,14 @@ class FocusNet(nn.Module):
         loss_band = self.weighted_seg_loss(
             band_pred_up,
             band_target,
-            pixel_weight=pixel_weight
+            pixel_weight=1.0 + band_target + uncertainty_full
         )
 
-        loss_gray_wavelet = self.gray_wavelet_calibration_loss(
-            band_pred_up,
-            band_target,
-            gray_prior
+        loss_ugel = self.ugel_loss(
+            logits=out,
+            targets=y,
+            band_target=band_target,
+            uncertainty_map=uncertainty_full
         )
 
         loss_consistency = self.selective_agreement_loss(
@@ -713,7 +648,7 @@ class FocusNet(nn.Module):
             + self.final_loss_weight * loss_final
             + self.focal_tversky_weight * loss_focal_tversky
             + self.band_loss_weight * loss_band
-            + self.gray_wavelet_loss_weight * loss_gray_wavelet
+            + self.ugel_loss_weight * loss_ugel
             + self.consistency_weight * loss_consistency
         )
 
@@ -724,6 +659,6 @@ class FocusNet(nn.Module):
             "loss_final": loss_final.detach(),
             "loss_focal_tversky": loss_focal_tversky.detach(),
             "loss_band": loss_band.detach(),
-            "loss_gray_wavelet": loss_gray_wavelet.detach(),
+            "loss_ugel": loss_ugel.detach(),
             "loss_consistency": loss_consistency.detach()
         }

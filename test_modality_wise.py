@@ -16,7 +16,7 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-EXPERIMENT_SUFFIX = "gray_wavelet_boundary_calibration"
+EXPERIMENT_TAG = "ugel_freqampmix"
 
 
 def load_modality_data(path):
@@ -24,14 +24,13 @@ def load_modality_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
-
     images = images_jpg + images_png
 
     for image_path in images:
         image_name = os.path.splitext(os.path.basename(image_path))[0]
 
-        mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
         mask_png = os.path.join(path, "masks", f"{image_name}.png")
+        mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
 
         if os.path.exists(mask_png):
             mask_path = mask_png
@@ -199,7 +198,7 @@ if __name__ == "__main__":
 
         checkpoint_path = (
             f"files/modality_wise/{model_name}/"
-            f"checkpoint_{modality}_{EXPERIMENT_SUFFIX}.pth"
+            f"checkpoint_{modality}_{EXPERIMENT_TAG}.pth"
         )
 
         if not os.path.exists(checkpoint_path):
@@ -227,7 +226,7 @@ if __name__ == "__main__":
 
         save_path = (
             f"files/modality_wise/{model_name}/"
-            f"results_{EXPERIMENT_SUFFIX}/{modality}"
+            f"results_{EXPERIMENT_TAG}/{modality}"
         )
 
         create_dir(save_path)

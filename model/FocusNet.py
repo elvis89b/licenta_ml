@@ -61,13 +61,11 @@ class WeightedDiceBCELoss(nn.Module):
             + (pixel_weight * targets).sum(dim=dims)
         )
 
-        dice = 1.0 - (2.0 * intersection + self.smooth) / (
+        dice_loss = 1.0 - (2.0 * intersection + self.smooth) / (
             denominator + self.smooth
         )
 
-        dice = dice.mean()
-
-        return bce + dice
+        return bce + dice_loss.mean()
 
 
 class FocalTverskyLoss(nn.Module):
@@ -98,46 +96,6 @@ class FocalTverskyLoss(nn.Module):
         loss = torch.pow((1.0 - tversky), self.gamma)
 
         return loss.mean()
-
-
-class UncertaintyGatedEdgeLoss(nn.Module):
-    def __init__(self, smooth=1.0):
-        super().__init__()
-        self.smooth = smooth
-
-    def forward(self, logits, targets, band_target, uncertainty_map):
-        probs = torch.sigmoid(logits)
-
-        edge_gate = torch.clamp(
-            band_target * (1.0 + 2.0 * uncertainty_map),
-            min=0.0,
-            max=3.0
-        )
-
-        bce = F.binary_cross_entropy_with_logits(
-            logits,
-            targets,
-            reduction="none"
-        )
-
-        bce = (bce * edge_gate).sum() / (edge_gate.sum() + 1e-6)
-
-        dims = (1, 2, 3)
-
-        intersection = (edge_gate * probs * targets).sum(dim=dims)
-
-        denominator = (
-            (edge_gate * probs).sum(dim=dims)
-            + (edge_gate * targets).sum(dim=dims)
-        )
-
-        dice = 1.0 - (2.0 * intersection + self.smooth) / (
-            denominator + self.smooth
-        )
-
-        dice = dice.mean()
-
-        return bce + dice
 
 
 class _ASPPModuleDeformable(nn.Module):
@@ -295,8 +253,6 @@ class CIDM_M(nn.Module):
     def __init__(self, channel):
         super(CIDM_M, self).__init__()
 
-        self.relu = nn.ReLU(True)
-
         self.upsample = nn.Upsample(
             scale_factor=2,
             mode="bilinear",
@@ -361,8 +317,6 @@ class CIDM_M(nn.Module):
 class CIDM_A(nn.Module):
     def __init__(self, channel):
         super(CIDM_A, self).__init__()
-
-        self.relu = nn.ReLU(True)
 
         self.upsample = nn.Upsample(
             scale_factor=2,
@@ -465,8 +419,6 @@ class FocusNet(nn.Module):
             gamma=0.75
         )
 
-        self.ugel_loss = UncertaintyGatedEdgeLoss()
-
         self.loss_w1 = 0.25
         self.loss_w2 = 0.25
         self.loss_w3 = 0.50
@@ -475,7 +427,7 @@ class FocusNet(nn.Module):
         self.final_loss_weight = 1.00
         self.focal_tversky_weight = 0.15
         self.band_loss_weight = 0.25
-        self.ugel_loss_weight = 0.20
+        self.ugel_weight = 0.20
         self.consistency_weight = 0.05
 
         self.band_head = nn.Sequential(
@@ -515,17 +467,15 @@ class FocusNet(nn.Module):
 
         return torch.clamp(band, 0.0, 1.0)
 
-    def normalize_uncertainty(self, uncertainty_map):
-        uncertainty_map = uncertainty_map.detach()
+    def normalize_uncertainty(self, u):
+        u = u.detach()
 
-        u_min = uncertainty_map.amin(dim=(2, 3), keepdim=True)
-        u_max = uncertainty_map.amax(dim=(2, 3), keepdim=True)
+        u_min = u.amin(dim=(2, 3), keepdim=True)
+        u_max = u.amax(dim=(2, 3), keepdim=True)
 
-        uncertainty_map = (uncertainty_map - u_min) / (
-            u_max - u_min + 1e-6
-        )
+        u = (u - u_min) / (u_max - u_min + 1e-6)
 
-        return torch.clamp(uncertainty_map, 0.0, 1.0)
+        return torch.clamp(u, 0.0, 1.0)
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
@@ -538,6 +488,27 @@ class FocusNet(nn.Module):
         )
 
         return (torch.abs(p1 - p2) * confidence).mean()
+
+    def uncertainty_gated_edge_loss(
+        self,
+        prediction_logits,
+        target_mask,
+        band_target,
+        uncertainty_map
+    ):
+        edge_focus = torch.clamp(
+            band_target * (1.0 + uncertainty_map),
+            min=0.0,
+            max=2.0
+        )
+
+        edge_weight = 1.0 + edge_focus
+
+        return self.weighted_seg_loss(
+            prediction_logits,
+            target_mask,
+            pixel_weight=edge_weight
+        )
 
     def forward(self, sample):
         x = sample["images"]
@@ -600,8 +571,8 @@ class FocusNet(nn.Module):
         pixel_weight = (
             1.0
             + 0.75 * band_target
-            + 0.75 * uncertainty_full
-            + 0.50 * band_target * uncertainty_full
+            + 0.50 * uncertainty_full
+            + 0.75 * band_target * uncertainty_full
         )
 
         loss1 = self.seg_loss(out1, y)
@@ -630,9 +601,9 @@ class FocusNet(nn.Module):
             pixel_weight=1.0 + band_target + uncertainty_full
         )
 
-        loss_ugel = self.ugel_loss(
-            logits=out,
-            targets=y,
+        loss_ugel = self.uncertainty_gated_edge_loss(
+            prediction_logits=out,
+            target_mask=y,
             band_target=band_target,
             uncertainty_map=uncertainty_full
         )
@@ -648,7 +619,7 @@ class FocusNet(nn.Module):
             + self.final_loss_weight * loss_final
             + self.focal_tversky_weight * loss_focal_tversky
             + self.band_loss_weight * loss_band
-            + self.ugel_loss_weight * loss_ugel
+            + self.ugel_weight * loss_ugel
             + self.consistency_weight * loss_consistency
         )
 

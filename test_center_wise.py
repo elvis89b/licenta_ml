@@ -16,7 +16,17 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-EXPERIMENT_TAG = "ugel_freqampmix"
+VARIANT_SLUG = "ugel_adaptive_freqampmix_val_threshold"
+
+THRESHOLD_CANDIDATES = [
+    0.35,
+    0.40,
+    0.45,
+    0.50,
+    0.55,
+    0.60,
+    0.65
+]
 
 
 def infer_modality_from_path(path):
@@ -41,13 +51,14 @@ def load_polypdb_center_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
+
     images = images_jpg + images_png
 
     for image_path in images:
         image_name = os.path.splitext(os.path.basename(image_path))[0]
 
-        mask_png = os.path.join(path, "masks", f"{image_name}.png")
         mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
+        mask_png = os.path.join(path, "masks", f"{image_name}.png")
 
         if os.path.exists(mask_png):
             mask_path = mask_png
@@ -69,67 +80,174 @@ def load_polypdb_center_data(path):
     return train_samples, valid_samples, test_samples
 
 
-def evaluate(model, device, save_path, test_samples, size, modality):
+def prepare_sample(image_path, mask_path, size, device):
+    image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+
+    if image is None:
+        raise ValueError(f"Could not read image: {image_path}")
+
+    image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
+    save_img = image.copy()
+
+    image = np.transpose(image, (2, 0, 1))
+    image = image.astype(np.float32) / 255.0
+    image = np.expand_dims(image, axis=0)
+
+    image = torch.from_numpy(image).to(device, dtype=torch.float32)
+
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+
+    if mask is None:
+        raise ValueError(f"Could not read mask: {mask_path}")
+
+    mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
+
+    save_mask = np.expand_dims(mask, axis=-1)
+    save_mask = np.concatenate([save_mask, save_mask, save_mask], axis=2)
+
+    mask = np.expand_dims(mask, axis=0)
+    mask = mask.astype(np.float32) / 255.0
+    mask = (mask > 0.5).astype(np.float32)
+    mask = np.expand_dims(mask, axis=0)
+
+    mask = torch.from_numpy(mask).to(device, dtype=torch.float32)
+
+    return image, mask, save_img, save_mask
+
+
+def get_prediction(model, image, mask, modality):
+    sample = {
+        "images": image,
+        "masks": mask,
+        "modalities": [modality]
+    }
+
+    out = model(sample)
+    y_pred = torch.sigmoid(out["prediction"])
+
+    return y_pred
+
+
+def calculate_metrics_with_threshold(mask, y_pred_prob, threshold):
+    y_pred_bin = (y_pred_prob > threshold).float()
+    return calculate_metrics(mask, y_pred_bin)
+
+
+def calibrate_threshold(model, device, valid_samples, size, modality):
+    if len(valid_samples) == 0:
+        print("Validation split is empty. Using default threshold 0.50.")
+        return 0.50
+
+    threshold_scores = {}
+
+    model.eval()
+
+    with torch.no_grad():
+        for threshold in THRESHOLD_CANDIDATES:
+            metrics_score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+            for image_path, mask_path in tqdm(
+                valid_samples,
+                total=len(valid_samples),
+                desc=f"Calibrating threshold {threshold:.2f}"
+            ):
+                image, mask, _, _ = prepare_sample(
+                    image_path=image_path,
+                    mask_path=mask_path,
+                    size=size,
+                    device=device
+                )
+
+                y_pred = get_prediction(
+                    model=model,
+                    image=image,
+                    mask=mask,
+                    modality=modality
+                )
+
+                score = calculate_metrics_with_threshold(
+                    mask=mask,
+                    y_pred_prob=y_pred,
+                    threshold=threshold
+                )
+
+                metrics_score = list(map(add, metrics_score, score))
+
+            jaccard = metrics_score[0] / len(valid_samples)
+            f1 = metrics_score[1] / len(valid_samples)
+            recall = metrics_score[2] / len(valid_samples)
+            precision = metrics_score[3] / len(valid_samples)
+            f2 = metrics_score[5] / len(valid_samples)
+
+            threshold_scores[threshold] = {
+                "jaccard": jaccard,
+                "f1": f1,
+                "recall": recall,
+                "precision": precision,
+                "f2": f2
+            }
+
+            print(
+                f"Threshold {threshold:.2f} | "
+                f"Jaccard: {jaccard:.4f} - "
+                f"F1: {f1:.4f} - "
+                f"Recall: {recall:.4f} - "
+                f"Precision: {precision:.4f} - "
+                f"F2: {f2:.4f}"
+            )
+
+    best_threshold = max(
+        threshold_scores.keys(),
+        key=lambda t: (
+            threshold_scores[t]["f1"],
+            threshold_scores[t]["jaccard"],
+            threshold_scores[t]["f2"]
+        )
+    )
+
+    print(f"Selected threshold: {best_threshold:.2f}")
+
+    return best_threshold
+
+
+def evaluate(model, device, save_path, test_samples, size, modality, threshold):
     metrics_score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     time_taken = []
 
     for _, (x, y) in tqdm(enumerate(test_samples), total=len(test_samples)):
         name = y.split("/")[-1].split(".")[0]
 
-        image = cv2.imread(x, cv2.IMREAD_COLOR)
-
-        if image is None:
-            raise ValueError(f"Could not read image: {x}")
-
-        image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
-        save_img = image.copy()
-
-        image = np.transpose(image, (2, 0, 1))
-        image = image.astype(np.float32) / 255.0
-        image = np.expand_dims(image, axis=0)
-
-        image = torch.from_numpy(image).to(device, dtype=torch.float32)
-
-        mask = cv2.imread(y, cv2.IMREAD_GRAYSCALE)
-
-        if mask is None:
-            raise ValueError(f"Could not read mask: {y}")
-
-        mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
-
-        save_mask = np.expand_dims(mask, axis=-1)
-        save_mask = np.concatenate([save_mask, save_mask, save_mask], axis=2)
-
-        mask = np.expand_dims(mask, axis=0)
-        mask = mask.astype(np.float32) / 255.0
-        mask = (mask > 0.5).astype(np.float32)
-        mask = np.expand_dims(mask, axis=0)
-
-        mask = torch.from_numpy(mask).to(device, dtype=torch.float32)
+        image, mask, save_img, save_mask = prepare_sample(
+            image_path=x,
+            mask_path=y,
+            size=size,
+            device=device
+        )
 
         with torch.no_grad():
             start_time = time.time()
 
-            sample = {
-                "images": image,
-                "masks": mask,
-                "modalities": [modality]
-            }
-
-            out = model(sample)
-            y_pred = out["prediction"]
+            y_pred_prob = get_prediction(
+                model=model,
+                image=image,
+                mask=mask,
+                modality=modality
+            )
 
             end_time = time.time() - start_time
             time_taken.append(end_time)
 
-            y_pred = torch.sigmoid(y_pred)
+            score = calculate_metrics_with_threshold(
+                mask=mask,
+                y_pred_prob=y_pred_prob,
+                threshold=threshold
+            )
 
-            score = calculate_metrics(mask, y_pred)
             metrics_score = list(map(add, metrics_score, score))
 
-            y_pred = y_pred[0].cpu().numpy()
+            y_pred = y_pred_prob[0].cpu().numpy()
             y_pred = np.squeeze(y_pred, axis=0)
-            y_pred = y_pred > 0.5
+            y_pred = y_pred > threshold
             y_pred = y_pred.astype(np.int32)
             y_pred = y_pred * 255
             y_pred = np.array(y_pred, dtype=np.uint8)
@@ -160,6 +278,7 @@ def evaluate(model, device, save_path, test_samples, size, modality):
     f2 = metrics_score[5] / len(test_samples)
 
     print(
+        f"Threshold: {threshold:.2f} - "
         f"Jaccard: {jaccard:1.4f} "
         f"- F1: {f1:1.4f} "
         f"- Recall: {recall:1.4f} "
@@ -180,7 +299,8 @@ def evaluate(model, device, save_path, test_samples, size, modality):
         "precision": precision,
         "accuracy": acc,
         "f2": f2,
-        "fps": mean_fps
+        "fps": mean_fps,
+        "threshold": threshold
     }
 
 
@@ -208,7 +328,7 @@ if __name__ == "__main__":
 
         checkpoint_path = (
             f"files/center_wise/{model_name}/"
-            f"checkpoint_{test_center}_{modality}_{EXPERIMENT_TAG}.pth"
+            f"checkpoint_{test_center}_{modality}_{VARIANT_SLUG}.pth"
         )
 
         if not os.path.exists(checkpoint_path):
@@ -221,10 +341,11 @@ if __name__ == "__main__":
             print(f"Skipping {test_center}: test path not found: {test_path}")
             continue
 
-        _, _, test_samples = load_polypdb_center_data(test_path)
+        _, valid_samples, test_samples = load_polypdb_center_data(test_path)
 
         print(f"Checkpoint: {checkpoint_path}")
         print(f"Test path: {test_path}")
+        print(f"Validation size: {len(valid_samples)}")
         print(f"Test size: {len(test_samples)}")
 
         if len(test_samples) == 0:
@@ -233,7 +354,7 @@ if __name__ == "__main__":
 
         save_path = (
             f"files/center_wise/{model_name}/"
-            f"results_{EXPERIMENT_TAG}/{test_center}/{modality}"
+            f"results_{VARIANT_SLUG}/{test_center}/{modality}"
         )
 
         create_dir(save_path)
@@ -246,13 +367,22 @@ if __name__ == "__main__":
 
         print(f"test model: {model_name}")
 
+        threshold = calibrate_threshold(
+            model=model,
+            device=device,
+            valid_samples=valid_samples,
+            size=size,
+            modality=modality
+        )
+
         result = evaluate(
             model=model,
             device=device,
             save_path=save_path,
             test_samples=test_samples,
             size=size,
-            modality=modality
+            modality=modality,
+            threshold=threshold
         )
 
         summary_results[test_center] = result
@@ -269,6 +399,7 @@ if __name__ == "__main__":
     for center, result in summary_results.items():
         print(
             f"{center} | "
+            f"Threshold: {result['threshold']:.2f} - "
             f"Jaccard: {result['jaccard']:.4f} - "
             f"F1: {result['f1']:.4f} - "
             f"Recall: {result['recall']:.4f} - "

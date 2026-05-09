@@ -1,7 +1,6 @@
 import os
 import time
 import datetime
-import random
 from glob import glob
 
 import albumentations as A
@@ -17,47 +16,8 @@ from model.FocusNet import FocusNet
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 
 
-VARIANT_SLUG = "ugel_adaptive_freqampmix_val_threshold"
-VARIANT_NAME = "DGFR+BandHead+UGEL+AdaptiveFreqAmpMix+ValThreshold"
-
-FREQAMPMIX_CONFIG = {
-    "WLI": {
-        "p": 0.30,
-        "alpha_min": 0.12,
-        "alpha_max": 0.28,
-        "low_freq_ratio": 0.10
-    },
-    "BLI": {
-        "p": 0.05,
-        "alpha_min": 0.04,
-        "alpha_max": 0.10,
-        "low_freq_ratio": 0.06
-    },
-    "FICE": {
-        "p": 0.35,
-        "alpha_min": 0.12,
-        "alpha_max": 0.30,
-        "low_freq_ratio": 0.10
-    },
-    "LCI": {
-        "p": 0.20,
-        "alpha_min": 0.08,
-        "alpha_max": 0.20,
-        "low_freq_ratio": 0.08
-    },
-    "NBI": {
-        "p": 0.15,
-        "alpha_min": 0.06,
-        "alpha_max": 0.16,
-        "low_freq_ratio": 0.07
-    },
-    "UNKNOWN": {
-        "p": 0.15,
-        "alpha_min": 0.06,
-        "alpha_max": 0.16,
-        "low_freq_ratio": 0.07
-    }
-}
+VARIANT_SLUG = "ugel_boundary_selective_contrastive_calibration"
+VARIANT_NAME = "DGFR+BandHead+UGEL+BoundarySelectiveContrastiveCalibration"
 
 
 def infer_modality_from_path(path):
@@ -111,70 +71,14 @@ def load_polypdb_modality_data(path):
     return train_samples, valid_samples, test_samples
 
 
-def apply_freqampmix(image, donor_image, alpha, low_freq_ratio):
-    image = image.astype(np.float32)
-    donor_image = donor_image.astype(np.float32)
-
-    if donor_image.shape[:2] != image.shape[:2]:
-        donor_image = cv2.resize(
-            donor_image,
-            (image.shape[1], image.shape[0]),
-            interpolation=cv2.INTER_LINEAR
-        )
-
-    fft_src = np.fft.fft2(image, axes=(0, 1))
-    fft_donor = np.fft.fft2(donor_image, axes=(0, 1))
-
-    amp_src = np.abs(fft_src)
-    phase_src = np.angle(fft_src)
-    amp_donor = np.abs(fft_donor)
-
-    amp_src_shift = np.fft.fftshift(amp_src, axes=(0, 1))
-    amp_donor_shift = np.fft.fftshift(amp_donor, axes=(0, 1))
-
-    h, w = image.shape[:2]
-    center_h, center_w = h // 2, w // 2
-
-    radius = max(1, int(min(h, w) * low_freq_ratio))
-
-    h1 = max(0, center_h - radius)
-    h2 = min(h, center_h + radius)
-    w1 = max(0, center_w - radius)
-    w2 = min(w, center_w + radius)
-
-    mixed_amp_shift = amp_src_shift.copy()
-
-    mixed_amp_shift[h1:h2, w1:w2, :] = (
-        (1.0 - alpha) * amp_src_shift[h1:h2, w1:w2, :]
-        + alpha * amp_donor_shift[h1:h2, w1:w2, :]
-    )
-
-    mixed_amp = np.fft.ifftshift(mixed_amp_shift, axes=(0, 1))
-
-    mixed_fft = mixed_amp * np.exp(1j * phase_src)
-    mixed = np.fft.ifft2(mixed_fft, axes=(0, 1))
-    mixed = np.real(mixed)
-
-    mixed = np.clip(mixed, 0, 255).astype(np.uint8)
-
-    return mixed
-
-
 class PolypDB_DATASET(Dataset):
-    def __init__(
-        self,
-        samples_path,
-        size,
-        transform=None,
-        use_freqampmix=False
-    ):
+    def __init__(self, samples_path, size, transform=None):
         super().__init__()
 
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
-        self.use_freqampmix = use_freqampmix
 
     def __getitem__(self, index):
         image_path = self.samples_path[index][0]
@@ -193,36 +97,6 @@ class PolypDB_DATASET(Dataset):
             augmentations = self.transform(image=image, mask=mask)
             image = augmentations["image"]
             mask = augmentations["mask"]
-
-        modality = infer_modality_from_path(image_path)
-
-        if self.use_freqampmix and self.n_samples > 1:
-            cfg = FREQAMPMIX_CONFIG.get(
-                modality,
-                FREQAMPMIX_CONFIG["UNKNOWN"]
-            )
-
-            if random.random() < cfg["p"]:
-                donor_index = random.randint(0, self.n_samples - 1)
-
-                if donor_index == index:
-                    donor_index = (donor_index + 1) % self.n_samples
-
-                donor_path = self.samples_path[donor_index][0]
-                donor_image = cv2.imread(donor_path, cv2.IMREAD_COLOR)
-
-                if donor_image is not None:
-                    alpha = random.uniform(
-                        cfg["alpha_min"],
-                        cfg["alpha_max"]
-                    )
-
-                    image = apply_freqampmix(
-                        image=image,
-                        donor_image=donor_image,
-                        alpha=alpha,
-                        low_freq_ratio=cfg["low_freq_ratio"]
-                    )
 
         image = cv2.resize(
             image,
@@ -243,6 +117,8 @@ class PolypDB_DATASET(Dataset):
         mask = mask.astype(np.float32) / 255.0
         mask = (mask > 0.5).astype(np.float32)
 
+        modality = infer_modality_from_path(image_path)
+
         return image, mask, modality
 
     def __len__(self):
@@ -259,9 +135,10 @@ def train(model, loader, optimizer, device):
     epoch_precision = 0.0
 
     epoch_loss_final = 0.0
-    epoch_loss_ft = 0.0
     epoch_loss_band = 0.0
     epoch_loss_ugel = 0.0
+    epoch_loss_safe_background = 0.0
+    epoch_loss_contrastive = 0.0
     epoch_loss_consistency = 0.0
 
     for x, y, modalities in loader:
@@ -287,9 +164,10 @@ def train(model, loader, optimizer, device):
         epoch_loss += loss.item()
 
         epoch_loss_final += out["loss_final"].item()
-        epoch_loss_ft += out["loss_focal_tversky"].item()
         epoch_loss_band += out["loss_band"].item()
         epoch_loss_ugel += out["loss_ugel"].item()
+        epoch_loss_safe_background += out["loss_safe_background"].item()
+        epoch_loss_contrastive += out["loss_contrastive"].item()
         epoch_loss_consistency += out["loss_consistency"].item()
 
         batch_jac = []
@@ -322,9 +200,10 @@ def train(model, loader, optimizer, device):
 
     loss_parts = {
         "loss_final": epoch_loss_final / n_batches,
-        "loss_focal_tversky": epoch_loss_ft / n_batches,
         "loss_band": epoch_loss_band / n_batches,
         "loss_ugel": epoch_loss_ugel / n_batches,
+        "loss_safe_background": epoch_loss_safe_background / n_batches,
+        "loss_contrastive": epoch_loss_contrastive / n_batches,
         "loss_consistency": epoch_loss_consistency / n_batches
     }
 
@@ -341,9 +220,10 @@ def evaluate(model, loader, device):
     epoch_precision = 0.0
 
     epoch_loss_final = 0.0
-    epoch_loss_ft = 0.0
     epoch_loss_band = 0.0
     epoch_loss_ugel = 0.0
+    epoch_loss_safe_background = 0.0
+    epoch_loss_contrastive = 0.0
     epoch_loss_consistency = 0.0
 
     with torch.no_grad():
@@ -365,9 +245,10 @@ def evaluate(model, loader, device):
             epoch_loss += loss.item()
 
             epoch_loss_final += out["loss_final"].item()
-            epoch_loss_ft += out["loss_focal_tversky"].item()
             epoch_loss_band += out["loss_band"].item()
             epoch_loss_ugel += out["loss_ugel"].item()
+            epoch_loss_safe_background += out["loss_safe_background"].item()
+            epoch_loss_contrastive += out["loss_contrastive"].item()
             epoch_loss_consistency += out["loss_consistency"].item()
 
             batch_jac = []
@@ -400,9 +281,10 @@ def evaluate(model, loader, device):
 
     loss_parts = {
         "loss_final": epoch_loss_final / n_batches,
-        "loss_focal_tversky": epoch_loss_ft / n_batches,
         "loss_band": epoch_loss_band / n_batches,
         "loss_ugel": epoch_loss_ugel / n_batches,
+        "loss_safe_background": epoch_loss_safe_background / n_batches,
+        "loss_contrastive": epoch_loss_contrastive / n_batches,
         "loss_consistency": epoch_loss_consistency / n_batches
     }
 
@@ -415,7 +297,8 @@ def run_experiment(path):
     current_modality = infer_modality_from_path(path)
 
     experiment_name = (
-        f"FocusNet_DGFR_BandHead_UGEL_AdaptiveFreqAmpMix_ValThreshold_"
+        f"FocusNet_DGFR_BandHead_UGEL_"
+        f"BoundarySelectiveContrastiveCalibration_"
         f"modality_{current_modality}"
     )
 
@@ -465,9 +348,8 @@ def run_experiment(path):
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
-            "loss": "Internal DiceBCE + FocalTversky + Band + UGEL",
-            "augmentation": "Spatial Aug + Adaptive FreqAmpMix",
-            "thresholding": "Validation threshold calibration during testing"
+            "loss": "DiceBCE + Band + UGEL + SafeBackground + Contrastive + Consistency",
+            "augmentation": "Spatial Aug only"
         }
     )
 
@@ -517,15 +399,13 @@ def run_experiment(path):
     train_dataset = PolypDB_DATASET(
         samples_path=train_samples,
         size=size,
-        transform=transform,
-        use_freqampmix=True
+        transform=transform
     )
 
     valid_dataset = PolypDB_DATASET(
         samples_path=valid_samples,
         size=size,
-        transform=None,
-        use_freqampmix=False
+        transform=None
     )
 
     train_loader = DataLoader(
@@ -567,8 +447,8 @@ def run_experiment(path):
 
     data_str = f"Optimizer: AdamW\n"
     data_str += f"Scheduler: ReduceLROnPlateau\n"
-    data_str += f"Loss: Internal DiceBCE + FocalTversky + Band + UGEL\n"
-    data_str += f"Augmentation: Spatial Aug + Adaptive FreqAmpMix\n"
+    data_str += f"Loss: DiceBCE + Band + UGEL + SafeBackground + Contrastive + Consistency\n"
+    data_str += f"Augmentation: Spatial Aug only\n"
 
     print_and_save(train_log_path, data_str)
 
@@ -627,15 +507,17 @@ def run_experiment(path):
             "valid/precision": valid_metrics[3],
 
             "train/loss_final": train_loss_parts["loss_final"],
-            "train/loss_focal_tversky": train_loss_parts["loss_focal_tversky"],
             "train/loss_band": train_loss_parts["loss_band"],
             "train/loss_ugel": train_loss_parts["loss_ugel"],
+            "train/loss_safe_background": train_loss_parts["loss_safe_background"],
+            "train/loss_contrastive": train_loss_parts["loss_contrastive"],
             "train/loss_consistency": train_loss_parts["loss_consistency"],
 
             "valid/loss_final": valid_loss_parts["loss_final"],
-            "valid/loss_focal_tversky": valid_loss_parts["loss_focal_tversky"],
             "valid/loss_band": valid_loss_parts["loss_band"],
             "valid/loss_ugel": valid_loss_parts["loss_ugel"],
+            "valid/loss_safe_background": valid_loss_parts["loss_safe_background"],
+            "valid/loss_contrastive": valid_loss_parts["loss_contrastive"],
             "valid/loss_consistency": valid_loss_parts["loss_consistency"],
 
             "best_valid_f1": best_valid_f1
@@ -665,9 +547,10 @@ def run_experiment(path):
         data_str += (
             f"\t Valid Loss Parts "
             f"- Final: {valid_loss_parts['loss_final']:.4f} "
-            f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
             f"- Band: {valid_loss_parts['loss_band']:.4f} "
             f"- UGEL: {valid_loss_parts['loss_ugel']:.4f} "
+            f"- SafeBG: {valid_loss_parts['loss_safe_background']:.4f} "
+            f"- Contrastive: {valid_loss_parts['loss_contrastive']:.4f} "
             f"- Consistency: {valid_loss_parts['loss_consistency']:.4f}\n"
         )
 

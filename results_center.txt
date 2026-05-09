@@ -147,6 +147,15 @@ Accuracy: 0.9834 (vs Paper: +0.0026, +0.27%)
 F2: 0.9328 (vs Paper: +0.0112, +1.22%)
 Threshold: 0.35
 
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.8803 (vs Paper: +0.0091, +1.04%)
+mDSC/F1: 0.9315 (vs Paper: +0.0085, +0.92%)
+Recall: 0.9323 (vs Paper: +0.0084, +0.91%)
+Precision: 0.9424 (vs Paper: +0.0018, +0.19%)
+Accuracy: 0.9832 (vs Paper: +0.0024, +0.24%)
+F2: 0.9304 (vs Paper: +0.0088, +0.95%)
+Threshold: 0.50
+
 BKAI
 
 Paper
@@ -293,6 +302,15 @@ Precision: 0.9019 (vs Paper: -0.0118, -1.29%)
 Accuracy: 0.9921 (vs Paper: +0.0000, +0.00%)
 F2: 0.9059 (vs Paper: -0.0142, -1.54%)
 Threshold: 0.65
+
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.8353 (vs Paper: -0.0261, -3.03%)
+mDSC/F1: 0.8878 (vs Paper: -0.0249, -2.73%)
+Recall: 0.9157 (vs Paper: -0.0157, -1.69%)
+Precision: 0.8865 (vs Paper: -0.0272, -2.98%)
+Accuracy: 0.9911 (vs Paper: -0.0010, -0.10%)
+F2: 0.8979 (vs Paper: -0.0222, -2.41%)
+Threshold: 0.50
 
 Karolinska
 
@@ -448,3 +466,12 @@ Precision: 0.8674 (vs Paper: -0.0927, -9.66%)
 Accuracy: 0.9866 (vs Paper: -0.0033, -0.33%)
 F2: 0.9332 (vs Paper: -0.0093, -0.99%)
 Threshold: 0.65
+
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.5864 (vs Paper: -0.3177, -35.14%)
+mDSC/F1: 0.7130 (vs Paper: -0.2334, -24.66%)
+Recall: 0.9708 (vs Paper: +0.0297, +3.16%)
+Precision: 0.6091 (vs Paper: -0.3510, -36.56%)
+Accuracy: 0.9487 (vs Paper: -0.0412, -4.16%)
+F2: 0.8280 (vs Paper: -0.1145, -12.15%)
+Threshold: 0.50

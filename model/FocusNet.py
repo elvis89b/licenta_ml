@@ -68,36 +68,6 @@ class WeightedDiceBCELoss(nn.Module):
         return bce + dice_loss.mean()
 
 
-class FocalTverskyLoss(nn.Module):
-    def __init__(self, alpha=0.35, beta=0.65, gamma=0.75, smooth=1.0):
-        super().__init__()
-
-        self.alpha = alpha
-        self.beta = beta
-        self.gamma = gamma
-        self.smooth = smooth
-
-    def forward(self, logits, targets):
-        probs = torch.sigmoid(logits)
-
-        dims = (1, 2, 3)
-
-        true_pos = (probs * targets).sum(dim=dims)
-        false_pos = (probs * (1.0 - targets)).sum(dim=dims)
-        false_neg = ((1.0 - probs) * targets).sum(dim=dims)
-
-        tversky = (true_pos + self.smooth) / (
-            true_pos
-            + self.alpha * false_pos
-            + self.beta * false_neg
-            + self.smooth
-        )
-
-        loss = torch.pow((1.0 - tversky), self.gamma)
-
-        return loss.mean()
-
-
 class _ASPPModuleDeformable(nn.Module):
     def __init__(self, in_channels, planes, kernel_size, padding):
         super(_ASPPModuleDeformable, self).__init__()
@@ -413,22 +383,21 @@ class FocusNet(nn.Module):
         self.seg_loss = DiceBCELoss()
         self.weighted_seg_loss = WeightedDiceBCELoss()
 
-        self.focal_tversky_loss = FocalTverskyLoss(
-            alpha=0.35,
-            beta=0.65,
-            gamma=0.75
-        )
-
         self.loss_w1 = 0.25
         self.loss_w2 = 0.25
         self.loss_w3 = 0.50
         self.loss_w4 = 0.50
 
         self.final_loss_weight = 1.00
-        self.focal_tversky_weight = 0.15
         self.band_loss_weight = 0.25
         self.ugel_weight = 0.20
+        self.safe_background_weight = 0.10
+        self.contrastive_weight = 0.05
         self.consistency_weight = 0.05
+
+        self.band_kernel_size = 7
+        self.safe_background_kernel_size = 9
+        self.contrastive_margin = 0.20
 
         self.band_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
@@ -445,6 +414,34 @@ class FocusNet(nn.Module):
             mode="bilinear",
             align_corners=False
         )
+
+    def get_modality_weights(self, sample):
+        modalities = sample.get("modalities", None)
+
+        if modalities is None:
+            return {
+                "ugel": self.ugel_weight,
+                "safe_background": self.safe_background_weight,
+                "contrastive": self.contrastive_weight
+            }
+
+        if isinstance(modalities, (list, tuple)):
+            modality_name = str(modalities[0]).upper()
+        else:
+            modality_name = str(modalities).upper()
+
+        if "WLI" in modality_name:
+            return {
+                "ugel": 0.10,
+                "safe_background": 0.05,
+                "contrastive": 0.05
+            }
+
+        return {
+            "ugel": self.ugel_weight,
+            "safe_background": self.safe_background_weight,
+            "contrastive": self.contrastive_weight
+        }
 
     def make_band_target(self, mask, kernel_size=7):
         pad = kernel_size // 2
@@ -466,6 +463,28 @@ class FocusNet(nn.Module):
         band = dilated - eroded
 
         return torch.clamp(band, 0.0, 1.0)
+
+    def make_safe_regions(self, mask, kernel_size=9):
+        pad = kernel_size // 2
+
+        dilated = F.max_pool2d(
+            mask,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=pad
+        )
+
+        eroded = -F.max_pool2d(
+            -mask,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=pad
+        )
+
+        safe_foreground = torch.clamp(eroded, 0.0, 1.0)
+        safe_background = torch.clamp(1.0 - dilated, 0.0, 1.0)
+
+        return safe_foreground, safe_background
 
     def normalize_uncertainty(self, u):
         u = u.detach()
@@ -509,6 +528,80 @@ class FocusNet(nn.Module):
             target_mask,
             pixel_weight=edge_weight
         )
+
+    def safe_background_suppression_loss(
+        self,
+        prediction_logits,
+        safe_background,
+        uncertainty_map
+    ):
+        probs = torch.sigmoid(prediction_logits)
+
+        confidence = torch.clamp(
+            1.0 - uncertainty_map,
+            min=0.0,
+            max=1.0
+        )
+
+        weight = safe_background * confidence
+
+        false_positive_penalty = -torch.log(1.0 - probs + 1e-6)
+
+        loss = (false_positive_penalty * weight).sum() / (
+            weight.sum() + 1e-6
+        )
+
+        return loss
+
+    def boundary_selective_contrastive_loss(
+        self,
+        features,
+        safe_foreground,
+        safe_background
+    ):
+        safe_foreground = F.interpolate(
+            safe_foreground,
+            size=features.shape[-2:],
+            mode="nearest"
+        )
+
+        safe_background = F.interpolate(
+            safe_background,
+            size=features.shape[-2:],
+            mode="nearest"
+        )
+
+        features = F.normalize(features, p=2, dim=1)
+
+        batch_losses = []
+
+        for i in range(features.shape[0]):
+            feat = features[i]
+            fg = safe_foreground[i]
+            bg = safe_background[i]
+
+            fg_count = fg.sum()
+            bg_count = bg.sum()
+
+            if fg_count < 1.0 or bg_count < 1.0:
+                continue
+
+            fg_proto = (feat * fg).sum(dim=(1, 2)) / (fg_count + 1e-6)
+            bg_proto = (feat * bg).sum(dim=(1, 2)) / (bg_count + 1e-6)
+
+            fg_proto = F.normalize(fg_proto, p=2, dim=0)
+            bg_proto = F.normalize(bg_proto, p=2, dim=0)
+
+            similarity = torch.sum(fg_proto * bg_proto)
+
+            loss = F.relu(similarity + self.contrastive_margin)
+
+            batch_losses.append(loss)
+
+        if len(batch_losses) == 0:
+            return features.sum() * 0.0
+
+        return torch.stack(batch_losses).mean()
 
     def forward(self, sample):
         x = sample["images"]
@@ -563,10 +656,20 @@ class FocusNet(nn.Module):
         band_pred = self.band_head(band_feat)
         band_pred_up = self.res(band_pred, base_size)
 
+        decoder_feat = 0.5 * (f3 + f4)
+
         uncertainty_full = self.res(coarse_uncertainty, base_size)
         uncertainty_full = self.normalize_uncertainty(uncertainty_full)
 
-        band_target = self.make_band_target(y, kernel_size=7)
+        band_target = self.make_band_target(
+            y,
+            kernel_size=self.band_kernel_size
+        )
+
+        safe_foreground, safe_background = self.make_safe_regions(
+            y,
+            kernel_size=self.safe_background_kernel_size
+        )
 
         pixel_weight = (
             1.0
@@ -593,8 +696,6 @@ class FocusNet(nn.Module):
             pixel_weight=pixel_weight
         )
 
-        loss_focal_tversky = self.focal_tversky_loss(out, y)
-
         loss_band = self.weighted_seg_loss(
             band_pred_up,
             band_target,
@@ -608,18 +709,33 @@ class FocusNet(nn.Module):
             uncertainty_map=uncertainty_full
         )
 
+        loss_safe_background = self.safe_background_suppression_loss(
+            prediction_logits=out,
+            safe_background=safe_background,
+            uncertainty_map=uncertainty_full
+        )
+
+        loss_contrastive = self.boundary_selective_contrastive_loss(
+            features=decoder_feat,
+            safe_foreground=safe_foreground,
+            safe_background=safe_background
+        )
+
         loss_consistency = self.selective_agreement_loss(
             out1,
             out2,
             uncertainty_full
         )
 
+        modality_weights = self.get_modality_weights(sample)
+
         loss = (
             loss_aux
             + self.final_loss_weight * loss_final
-            + self.focal_tversky_weight * loss_focal_tversky
             + self.band_loss_weight * loss_band
-            + self.ugel_weight * loss_ugel
+            + modality_weights["ugel"] * loss_ugel
+            + modality_weights["safe_background"] * loss_safe_background
+            + modality_weights["contrastive"] * loss_contrastive
             + self.consistency_weight * loss_consistency
         )
 
@@ -628,8 +744,9 @@ class FocusNet(nn.Module):
             "loss": loss,
             "loss_aux": loss_aux.detach(),
             "loss_final": loss_final.detach(),
-            "loss_focal_tversky": loss_focal_tversky.detach(),
             "loss_band": loss_band.detach(),
             "loss_ugel": loss_ugel.detach(),
+            "loss_safe_background": loss_safe_background.detach(),
+            "loss_contrastive": loss_contrastive.detach(),
             "loss_consistency": loss_consistency.detach()
         }

@@ -138,6 +138,14 @@ Precision: 0.4280 (vs Paper: -0.4124, -49.07%)
 Accuracy: 0.9431 (vs Paper: -0.0456, -4.61%)
 F2: 0.6472 (vs Paper: -0.1872, -22.44%)
 
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.7678 (vs Paper: +0.0218, +2.92%)
+mDSC/F1: 0.8509 (vs Paper: +0.0262, +3.18%)
+Recall: 0.9098 (vs Paper: +0.0626, +7.39%)
+Precision: 0.8150 (vs Paper: -0.0254, -3.02%)
+Accuracy: 0.9900 (vs Paper: +0.0013, +0.13%)
+F2: 0.8834 (vs Paper: +0.0490, +5.87%)
+
 FICE
 
 Paper
@@ -275,6 +283,14 @@ Recall: 0.9631 (vs Paper: +0.0829, +9.42%)
 Precision: 0.8948 (vs Paper: -0.0137, -1.51%)
 Accuracy: 0.9941 (vs Paper: +0.0027, +0.27%)
 F2: 0.9464 (vs Paper: +0.0658, +7.47%)
+
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.7801 (vs Paper: -0.0452, -5.48%)
+mDSC/F1: 0.8609 (vs Paper: -0.0237, -2.68%)
+Recall: 0.9226 (vs Paper: +0.0424, +4.82%)
+Precision: 0.8194 (vs Paper: -0.0891, -9.81%)
+Accuracy: 0.9883 (vs Paper: -0.0031, -0.31%)
+F2: 0.8951 (vs Paper: +0.0145, +1.65%)
 
 LCI
 
@@ -414,6 +430,14 @@ Precision: 0.8705 (vs Paper: -0.0477, -5.20%)
 Accuracy: 0.9917 (vs Paper: -0.0024, -0.24%)
 F2: 0.9215 (vs Paper: -0.0077, -0.83%)
 
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.8604 (vs Paper: -0.0009, -0.10%)
+mDSC/F1: 0.9225 (vs Paper: +0.0021, +0.23%)
+Recall: 0.9739 (vs Paper: +0.0361, +3.85%)
+Precision: 0.8824 (vs Paper: -0.0358, -3.90%)
+Accuracy: 0.9928 (vs Paper: -0.0013, -0.13%)
+F2: 0.9517 (vs Paper: +0.0225, +2.42%)
+
 NBI
 
 Paper
@@ -552,6 +576,14 @@ Precision: 0.7810 (vs Paper: -0.0776, -9.04%)
 Accuracy: 0.9762 (vs Paper: +0.0015, +0.15%)
 F2: 0.8572 (vs Paper: +0.0331, +4.02%)
 
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.7957 (vs Paper: +0.0490, +6.56%)
+mDSC/F1: 0.8631 (vs Paper: +0.0422, +5.14%)
+Recall: 0.8906 (vs Paper: +0.0591, +7.11%)
+Precision: 0.8586 (vs Paper: +0.0000, +0.00%)
+Accuracy: 0.9814 (vs Paper: +0.0067, +0.69%)
+F2: 0.8777 (vs Paper: +0.0536, +6.50%)
+
 WLI
 
 Paper
@@ -689,3 +721,11 @@ Recall: 0.9439 (vs Paper: +0.0121, +1.30%)
 Precision: 0.9360 (vs Paper: -0.0117, -1.23%)
 Accuracy: 0.9864 (vs Paper: +0.0006, +0.06%)
 F2: 0.9386 (vs Paper: +0.0072, +0.77%)
+
+DGFR + Band Head + UGEL + Boundary-Selective Contrastive Calibration
+mIoU/Jaccard: 0.8790 (vs Paper: -0.0072, -0.81%)
+mDSC/F1: 0.9291 (vs Paper: -0.0051, -0.55%)
+Recall: 0.9409 (vs Paper: +0.0091, +0.98%)
+Precision: 0.9326 (vs Paper: -0.0151, -1.59%)
+Accuracy: 0.9854 (vs Paper: -0.0004, -0.04%)
+F2: 0.9331 (vs Paper: +0.0017, +0.18%)

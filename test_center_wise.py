@@ -16,17 +16,8 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-VARIANT_SLUG = "ugel_adaptive_freqampmix_val_threshold"
-
-THRESHOLD_CANDIDATES = [
-    0.35,
-    0.40,
-    0.45,
-    0.50,
-    0.55,
-    0.60,
-    0.65
-]
+VARIANT_SLUG = "ugel_boundary_selective_contrastive_calibration"
+FIXED_THRESHOLD = 0.50
 
 
 def infer_modality_from_path(path):
@@ -131,83 +122,6 @@ def get_prediction(model, image, mask, modality):
 def calculate_metrics_with_threshold(mask, y_pred_prob, threshold):
     y_pred_bin = (y_pred_prob > threshold).float()
     return calculate_metrics(mask, y_pred_bin)
-
-
-def calibrate_threshold(model, device, valid_samples, size, modality):
-    if len(valid_samples) == 0:
-        print("Validation split is empty. Using default threshold 0.50.")
-        return 0.50
-
-    threshold_scores = {}
-
-    model.eval()
-
-    with torch.no_grad():
-        for threshold in THRESHOLD_CANDIDATES:
-            metrics_score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-
-            for image_path, mask_path in tqdm(
-                valid_samples,
-                total=len(valid_samples),
-                desc=f"Calibrating threshold {threshold:.2f}"
-            ):
-                image, mask, _, _ = prepare_sample(
-                    image_path=image_path,
-                    mask_path=mask_path,
-                    size=size,
-                    device=device
-                )
-
-                y_pred = get_prediction(
-                    model=model,
-                    image=image,
-                    mask=mask,
-                    modality=modality
-                )
-
-                score = calculate_metrics_with_threshold(
-                    mask=mask,
-                    y_pred_prob=y_pred,
-                    threshold=threshold
-                )
-
-                metrics_score = list(map(add, metrics_score, score))
-
-            jaccard = metrics_score[0] / len(valid_samples)
-            f1 = metrics_score[1] / len(valid_samples)
-            recall = metrics_score[2] / len(valid_samples)
-            precision = metrics_score[3] / len(valid_samples)
-            f2 = metrics_score[5] / len(valid_samples)
-
-            threshold_scores[threshold] = {
-                "jaccard": jaccard,
-                "f1": f1,
-                "recall": recall,
-                "precision": precision,
-                "f2": f2
-            }
-
-            print(
-                f"Threshold {threshold:.2f} | "
-                f"Jaccard: {jaccard:.4f} - "
-                f"F1: {f1:.4f} - "
-                f"Recall: {recall:.4f} - "
-                f"Precision: {precision:.4f} - "
-                f"F2: {f2:.4f}"
-            )
-
-    best_threshold = max(
-        threshold_scores.keys(),
-        key=lambda t: (
-            threshold_scores[t]["f1"],
-            threshold_scores[t]["jaccard"],
-            threshold_scores[t]["f2"]
-        )
-    )
-
-    print(f"Selected threshold: {best_threshold:.2f}")
-
-    return best_threshold
 
 
 def evaluate(model, device, save_path, test_samples, size, modality, threshold):
@@ -347,6 +261,7 @@ if __name__ == "__main__":
         print(f"Test path: {test_path}")
         print(f"Validation size: {len(valid_samples)}")
         print(f"Test size: {len(test_samples)}")
+        print(f"Fixed threshold: {FIXED_THRESHOLD:.2f}")
 
         if len(test_samples) == 0:
             print(f"Skipping {test_center}: empty test split.")
@@ -367,14 +282,6 @@ if __name__ == "__main__":
 
         print(f"test model: {model_name}")
 
-        threshold = calibrate_threshold(
-            model=model,
-            device=device,
-            valid_samples=valid_samples,
-            size=size,
-            modality=modality
-        )
-
         result = evaluate(
             model=model,
             device=device,
@@ -382,7 +289,7 @@ if __name__ == "__main__":
             test_samples=test_samples,
             size=size,
             modality=modality,
-            threshold=threshold
+            threshold=FIXED_THRESHOLD
         )
 
         summary_results[test_center] = result

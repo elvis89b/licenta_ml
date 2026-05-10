@@ -16,8 +16,20 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-VARIANT_SLUG = "ugel_boundary_selective_contrastive_calibration"
-FIXED_THRESHOLD = 0.50
+VARIANT_SLUG = "wavelet_adaptive_ugel_ema"
+
+THRESHOLD_CANDIDATES = [
+    0.30,
+    0.35,
+    0.40,
+    0.45,
+    0.50,
+    0.55,
+    0.60,
+    0.65,
+    0.70,
+    0.75
+]
 
 EVAL_PROTOCOL = "paper"
 # "paper": WLI uses split test, BLI/FICE/LCI/NBI use all samples, like your previous modality-wise scripts.
@@ -76,7 +88,6 @@ def prepare_sample(image_path, mask_path, size, device):
     image = np.transpose(image, (2, 0, 1))
     image = image.astype(np.float32) / 255.0
     image = np.expand_dims(image, axis=0)
-
     image = torch.from_numpy(image).to(device, dtype=torch.float32)
 
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
@@ -93,7 +104,6 @@ def prepare_sample(image_path, mask_path, size, device):
     mask = mask.astype(np.float32) / 255.0
     mask = (mask > 0.5).astype(np.float32)
     mask = np.expand_dims(mask, axis=0)
-
     mask = torch.from_numpy(mask).to(device, dtype=torch.float32)
 
     return image, mask, save_img, save_mask
@@ -115,6 +125,83 @@ def get_prediction(model, image, mask, modality):
 def calculate_metrics_with_threshold(mask, y_pred_prob, threshold):
     y_pred_bin = (y_pred_prob > threshold).float()
     return calculate_metrics(mask, y_pred_bin)
+
+
+def calibrate_threshold(model, device, valid_samples, size, modality):
+    if len(valid_samples) == 0:
+        print("Validation split is empty. Using default threshold 0.50.")
+        return 0.50
+
+    threshold_scores = {}
+    model.eval()
+
+    with torch.no_grad():
+        for threshold in THRESHOLD_CANDIDATES:
+            metrics_score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+            for image_path, mask_path in tqdm(
+                valid_samples,
+                total=len(valid_samples),
+                desc=f"Calibrating threshold {threshold:.2f}"
+            ):
+                image, mask, _, _ = prepare_sample(
+                    image_path=image_path,
+                    mask_path=mask_path,
+                    size=size,
+                    device=device
+                )
+
+                y_pred = get_prediction(
+                    model=model,
+                    image=image,
+                    mask=mask,
+                    modality=modality
+                )
+
+                score = calculate_metrics_with_threshold(
+                    mask=mask,
+                    y_pred_prob=y_pred,
+                    threshold=threshold
+                )
+
+                metrics_score = list(map(add, metrics_score, score))
+
+            jaccard = metrics_score[0] / len(valid_samples)
+            f1 = metrics_score[1] / len(valid_samples)
+            recall = metrics_score[2] / len(valid_samples)
+            precision = metrics_score[3] / len(valid_samples)
+            f2 = metrics_score[5] / len(valid_samples)
+
+            threshold_scores[threshold] = {
+                "jaccard": jaccard,
+                "f1": f1,
+                "recall": recall,
+                "precision": precision,
+                "f2": f2
+            }
+
+            print(
+                f"Threshold {threshold:.2f} | "
+                f"Jaccard: {jaccard:.4f} - "
+                f"F1: {f1:.4f} - "
+                f"Recall: {recall:.4f} - "
+                f"Precision: {precision:.4f} - "
+                f"F2: {f2:.4f}"
+            )
+
+    best_threshold = max(
+        threshold_scores.keys(),
+        key=lambda t: (
+            threshold_scores[t]["f1"],
+            threshold_scores[t]["jaccard"],
+            threshold_scores[t]["precision"],
+            threshold_scores[t]["f2"]
+        )
+    )
+
+    print(f"Selected threshold: {best_threshold:.2f}")
+
+    return best_threshold
 
 
 def evaluate(model, device, save_path, test_samples, size, modality, threshold):
@@ -164,13 +251,7 @@ def evaluate(model, device, save_path, test_samples, size, modality, threshold):
         line = np.ones((size[0], 10, 3), dtype=np.uint8) * 255
 
         cat_images = np.concatenate(
-            [
-                save_img,
-                line,
-                save_mask,
-                line,
-                y_pred
-            ],
+            [save_img, line, save_mask, line, y_pred],
             axis=1
         )
 
@@ -216,17 +297,9 @@ if __name__ == "__main__":
 
     model_name = "FocusNet"
     size = (256, 256)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    test_modality_list = [
-        "WLI",
-        "BLI",
-        "FICE",
-        "LCI",
-        "NBI"
-    ]
-
+    test_modality_list = ["WLI", "BLI", "FICE", "LCI", "NBI"]
     summary_results = {}
 
     for modality in test_modality_list:
@@ -264,7 +337,6 @@ if __name__ == "__main__":
         print(f"Validation size: {len(valid_samples)}")
         print(f"Test size: {len(test_samples)}")
         print(f"Eval protocol: {EVAL_PROTOCOL}")
-        print(f"Fixed threshold: {FIXED_THRESHOLD:.2f}")
 
         if len(test_samples) == 0:
             print(f"Skipping {modality}: empty test split.")
@@ -285,6 +357,14 @@ if __name__ == "__main__":
 
         print(f"test model: {model_name}")
 
+        threshold = calibrate_threshold(
+            model=model,
+            device=device,
+            valid_samples=valid_samples,
+            size=size,
+            modality=modality
+        )
+
         result = evaluate(
             model=model,
             device=device,
@@ -292,7 +372,7 @@ if __name__ == "__main__":
             test_samples=test_samples,
             size=size,
             modality=modality,
-            threshold=FIXED_THRESHOLD
+            threshold=threshold
         )
 
         summary_results[modality] = result

@@ -53,9 +53,7 @@ class WeightedDiceBCELoss(nn.Module):
         bce = (bce * pixel_weight).sum() / (pixel_weight.sum() + 1e-6)
 
         dims = (1, 2, 3)
-
         intersection = (pixel_weight * probs * targets).sum(dim=dims)
-
         denominator = (
             (pixel_weight * probs).sum(dim=dims)
             + (pixel_weight * targets).sum(dim=dims)
@@ -69,7 +67,7 @@ class WeightedDiceBCELoss(nn.Module):
 
 
 class FocalTverskyLoss(nn.Module):
-    def __init__(self, alpha=0.40, beta=0.60, gamma=0.75, smooth=1.0):
+    def __init__(self, alpha=0.35, beta=0.65, gamma=0.75, smooth=1.0):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
@@ -91,7 +89,7 @@ class FocalTverskyLoss(nn.Module):
             + self.smooth
         )
 
-        return torch.pow((1.0 - tversky), self.gamma).mean()
+        return torch.pow(1.0 - tversky, self.gamma).mean()
 
 
 class _ASPPModuleDeformable(nn.Module):
@@ -114,7 +112,6 @@ class _ASPPModuleDeformable(nn.Module):
         x = self.atrous_conv(x)
         x = self.bn(x)
         x = self.relu(x)
-
         return x
 
 
@@ -131,81 +128,25 @@ class DEM(nn.Module):
         self.in_channels = in_channels
 
         self.aspp1 = nn.Sequential(
-            _ASPPModuleDeformable(
-                in_channels // 4,
-                self.in_channelster,
-                (1, 3),
-                padding=0
-            ),
-            _ASPPModuleDeformable(
-                self.in_channelster,
-                self.in_channelster,
-                (3, 1),
-                padding=0
-            )
+            _ASPPModuleDeformable(in_channels // 4, self.in_channelster, (1, 3), padding=0),
+            _ASPPModuleDeformable(self.in_channelster, self.in_channelster, (3, 1), padding=0)
         )
-
         self.aspp2 = nn.Sequential(
-            _ASPPModuleDeformable(
-                in_channels // 4,
-                self.in_channelster,
-                (1, 3),
-                padding=0
-            ),
-            _ASPPModuleDeformable(
-                self.in_channelster,
-                self.in_channelster,
-                (3, 1),
-                padding=0
-            )
+            _ASPPModuleDeformable(in_channels // 4, self.in_channelster, (1, 3), padding=0),
+            _ASPPModuleDeformable(self.in_channelster, self.in_channelster, (3, 1), padding=0)
         )
-
         self.aspp3 = nn.Sequential(
-            _ASPPModuleDeformable(
-                in_channels // 4,
-                self.in_channelster,
-                (1, 3),
-                padding=0
-            ),
-            _ASPPModuleDeformable(
-                self.in_channelster,
-                self.in_channelster,
-                (3, 1),
-                padding=0
-            )
+            _ASPPModuleDeformable(in_channels // 4, self.in_channelster, (1, 3), padding=0),
+            _ASPPModuleDeformable(self.in_channelster, self.in_channelster, (3, 1), padding=0)
         )
-
         self.aspp4 = nn.Sequential(
-            _ASPPModuleDeformable(
-                in_channels // 4,
-                self.in_channelster,
-                (1, 3),
-                padding=0
-            ),
-            _ASPPModuleDeformable(
-                self.in_channelster,
-                self.in_channelster,
-                (3, 1),
-                padding=0
-            )
+            _ASPPModuleDeformable(in_channels // 4, self.in_channelster, (1, 3), padding=0),
+            _ASPPModuleDeformable(self.in_channelster, self.in_channelster, (3, 1), padding=0)
         )
 
         self.eca = eca_layer(self.in_channelster)
-
-        self.conv1 = nn.Conv2d(
-            self.in_channelster * 4,
-            self.in_channelster,
-            1,
-            bias=False
-        )
-
-        self.conv2 = nn.Conv2d(
-            self.in_channelster,
-            out_channels,
-            1,
-            bias=False
-        )
-
+        self.conv1 = nn.Conv2d(self.in_channelster * 4, self.in_channelster, 1, bias=False)
+        self.conv2 = nn.Conv2d(self.in_channelster, out_channels, 1, bias=False)
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(0.5)
@@ -218,11 +159,7 @@ class DEM(nn.Module):
         )
 
     def forward(self, x):
-        x_1, x_2, x_3, x_4 = torch.split(
-            x,
-            self.in_channels // 4,
-            dim=1
-        )
+        x_1, x_2, x_3, x_4 = torch.split(x, self.in_channels // 4, dim=1)
 
         x1 = self.aspp1(x_1)
         x2 = self.aspp2(x_2)
@@ -248,23 +185,9 @@ class CIDM_M(nn.Module):
     def __init__(self, channel):
         super(CIDM_M, self).__init__()
 
-        self.upsample = nn.Upsample(
-            scale_factor=2,
-            mode="bilinear",
-            align_corners=True
-        )
-
-        self.up03 = nn.Upsample(
-            scale_factor=2,
-            mode="bilinear",
-            align_corners=True
-        )
-
-        self.up04 = nn.Upsample(
-            scale_factor=4,
-            mode="bilinear",
-            align_corners=True
-        )
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up03 = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up04 = nn.Upsample(scale_factor=4, mode="bilinear", align_corners=True)
 
         self.conv_upsample1 = BasicConv2d(channel, channel, 3, padding=1)
         self.conv_upsample2 = BasicConv2d(channel, channel, 3, padding=1)
@@ -285,9 +208,7 @@ class CIDM_M(nn.Module):
 
     def forward(self, x1, x2, x3):
         xh = x1
-
         xm = self.conv_upsample1(self.upsample(x1)) * x2
-
         xl = (
             self.conv_upsample2(self.upsample(self.upsample(x1)))
             * self.conv_upsample3(self.upsample(x2))
@@ -313,23 +234,9 @@ class CIDM_A(nn.Module):
     def __init__(self, channel):
         super(CIDM_A, self).__init__()
 
-        self.upsample = nn.Upsample(
-            scale_factor=2,
-            mode="bilinear",
-            align_corners=True
-        )
-
-        self.up03 = nn.Upsample(
-            scale_factor=2,
-            mode="bilinear",
-            align_corners=True
-        )
-
-        self.up04 = nn.Upsample(
-            scale_factor=4,
-            mode="bilinear",
-            align_corners=True
-        )
+        self.upsample = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up03 = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up04 = nn.Upsample(scale_factor=4, mode="bilinear", align_corners=True)
 
         self.conv_upsample1 = BasicConv2d(channel, channel, 3, padding=1)
         self.conv_upsample2 = BasicConv2d(channel, channel, 3, padding=1)
@@ -350,9 +257,7 @@ class CIDM_A(nn.Module):
 
     def forward(self, x1, x2, x3):
         xh = x1
-
         xm = self.conv_upsample1(self.upsample(x1)) + x2
-
         xl = (
             self.conv_upsample2(self.upsample(self.upsample(x1)))
             + self.conv_upsample3(self.upsample(x2))
@@ -379,18 +284,11 @@ class FocusNet(nn.Module):
         super(FocusNet, self).__init__()
 
         self.pvt = pvt_v2_b4()
-
         path = "pretrained_pth/pvt_v2_b4.pth"
 
         save_model = torch.load(path, map_location="cpu")
         model_dict = self.pvt.state_dict()
-
-        state_dict = {
-            k: v
-            for k, v in save_model.items()
-            if k in model_dict.keys()
-        }
-
+        state_dict = {k: v for k, v in save_model.items() if k in model_dict.keys()}
         model_dict.update(state_dict)
         self.pvt.load_state_dict(model_dict)
 
@@ -399,19 +297,13 @@ class FocusNet(nn.Module):
         self.Translayer_pvt4 = BasicConv2d(512, channel, 1)
 
         self.context = DEM(64, channel)
-
         self.decoder1 = CIDM_M(channel)
         self.decoder2 = CIDM_A(channel)
-
         self.attention = FocusAttention(channel, channel)
 
         self.seg_loss = DiceBCELoss()
         self.weighted_seg_loss = WeightedDiceBCELoss()
-        self.focal_tversky_loss = FocalTverskyLoss(
-            alpha=0.40,
-            beta=0.60,
-            gamma=0.75
-        )
+        self.focal_tversky_loss = FocalTverskyLoss(alpha=0.35, beta=0.65, gamma=0.75)
 
         self.loss_w1 = 0.25
         self.loss_w2 = 0.25
@@ -419,12 +311,8 @@ class FocusNet(nn.Module):
         self.loss_w4 = 0.50
 
         self.final_loss_weight = 1.00
-        self.focal_tversky_weight = 0.10
-        self.band_loss_weight = 0.20
-        self.ugel_weight = 0.22
-        self.wavelet_edge_weight = 0.08
-        self.safe_background_weight = 0.06
-        self.consistency_weight = 0.05
+        self.consistency_weight = 0.04
+        self.teacher_consistency_weight = 0.03
 
         self.band_kernel_size = 7
         self.safe_background_kernel_size = 9
@@ -438,238 +326,184 @@ class FocusNet(nn.Module):
         )
 
     def res(self, x, size):
-        return F.interpolate(
-            x,
-            size=size,
-            mode="bilinear",
-            align_corners=False
-        )
+        return F.interpolate(x, size=size, mode="bilinear", align_corners=False)
 
-    def get_modality_weights(self, sample):
+    def get_context_name(self, sample):
         modalities = sample.get("modalities", None)
+        centers = sample.get("centers", None)
 
-        if modalities is None:
-            modality_name = "UNKNOWN"
-        elif isinstance(modalities, (list, tuple)):
-            modality_name = str(modalities[0]).upper()
+        if isinstance(modalities, (list, tuple)) and len(modalities) > 0:
+            modality = str(modalities[0]).upper()
+        elif modalities is not None:
+            modality = str(modalities).upper()
         else:
-            modality_name = str(modalities).upper()
+            modality = "UNKNOWN"
 
-        if "WLI" in modality_name:
-            return {
-                "ugel": 0.08,
-                "safe_background": 0.08,
-                "wavelet_edge": 0.10,
-                "focal_tversky": 0.08
-            }
+        if isinstance(centers, (list, tuple)) and len(centers) > 0:
+            center = str(centers[0]).upper()
+        elif centers is not None:
+            center = str(centers).upper()
+        else:
+            center = "UNKNOWN_CENTER"
 
-        if "FICE" in modality_name:
-            return {
-                "ugel": 0.20,
-                "safe_background": 0.04,
-                "wavelet_edge": 0.08,
-                "focal_tversky": 0.08
-            }
+        return modality, center
 
-        if "LCI" in modality_name:
-            return {
-                "ugel": 0.18,
-                "safe_background": 0.04,
-                "wavelet_edge": 0.07,
-                "focal_tversky": 0.06
-            }
+    def get_loss_weights(self, sample):
+        modality, center = self.get_context_name(sample)
 
-        if "BLI" in modality_name or "NBI" in modality_name:
-            return {
-                "ugel": 0.24,
-                "safe_background": 0.06,
-                "wavelet_edge": 0.09,
-                "focal_tversky": 0.10
-            }
-
-        return {
-            "ugel": self.ugel_weight,
-            "safe_background": self.safe_background_weight,
-            "wavelet_edge": self.wavelet_edge_weight,
-            "focal_tversky": self.focal_tversky_weight
+        weights = {
+            "band": 0.25,
+            "ugel": 0.20,
+            "wavelet": 0.04,
+            "safe_background": 0.04,
+            "focal_tversky": 0.08,
+            "teacher": self.teacher_consistency_weight,
         }
+
+        if "BLI" in modality:
+            weights.update({
+                "band": 0.25,
+                "ugel": 0.28,
+                "wavelet": 0.00,
+                "safe_background": 0.03,
+                "focal_tversky": 0.12,
+                "teacher": 0.02,
+            })
+        elif "FICE" in modality:
+            weights.update({
+                "band": 0.25,
+                "ugel": 0.24,
+                "wavelet": 0.03,
+                "safe_background": 0.04,
+                "focal_tversky": 0.10,
+                "teacher": 0.03,
+            })
+        elif "LCI" in modality:
+            weights.update({
+                "band": 0.22,
+                "ugel": 0.18,
+                "wavelet": 0.07,
+                "safe_background": 0.02,
+                "focal_tversky": 0.05,
+                "teacher": 0.04,
+            })
+        elif "NBI" in modality:
+            weights.update({
+                "band": 0.25,
+                "ugel": 0.26,
+                "wavelet": 0.03,
+                "safe_background": 0.05,
+                "focal_tversky": 0.10,
+                "teacher": 0.03,
+            })
+        elif "WLI" in modality:
+            weights.update({
+                "band": 0.25,
+                "ugel": 0.08,
+                "wavelet": 0.04,
+                "safe_background": 0.03,
+                "focal_tversky": 0.02,
+                "teacher": 0.03,
+            })
+
+        if "SIMULA" in center:
+            weights.update({
+                "band": 0.25,
+                "ugel": 0.08,
+                "wavelet": 0.03,
+                "safe_background": 0.02,
+                "focal_tversky": 0.03,
+                "teacher": 0.03,
+            })
+        elif "BKAI" in center:
+            weights.update({
+                "band": 0.22,
+                "ugel": 0.05,
+                "wavelet": 0.02,
+                "safe_background": 0.02,
+                "focal_tversky": 0.01,
+                "teacher": 0.02,
+            })
+        elif "KAROLINSKA" in center:
+            weights.update({
+                "band": 0.28,
+                "ugel": 0.00,
+                "wavelet": 0.05,
+                "safe_background": 0.01,
+                "focal_tversky": 0.00,
+                "teacher": 0.02,
+            })
+
+        return weights
 
     def make_band_target(self, mask, kernel_size=7):
         pad = kernel_size // 2
-
-        dilated = F.max_pool2d(
-            mask,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=pad
-        )
-
-        eroded = -F.max_pool2d(
-            -mask,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=pad
-        )
-
-        band = dilated - eroded
-
-        return torch.clamp(band, 0.0, 1.0)
+        dilated = F.max_pool2d(mask, kernel_size=kernel_size, stride=1, padding=pad)
+        eroded = -F.max_pool2d(-mask, kernel_size=kernel_size, stride=1, padding=pad)
+        return torch.clamp(dilated - eroded, 0.0, 1.0)
 
     def make_safe_background(self, mask, kernel_size=9):
         pad = kernel_size // 2
+        dilated = F.max_pool2d(mask, kernel_size=kernel_size, stride=1, padding=pad)
+        return torch.clamp(1.0 - dilated, 0.0, 1.0)
 
-        dilated = F.max_pool2d(
-            mask,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=pad
-        )
+    def normalize_map(self, value):
+        value = value.detach()
+        v_min = value.amin(dim=(2, 3), keepdim=True)
+        v_max = value.amax(dim=(2, 3), keepdim=True)
+        value = (value - v_min) / (v_max - v_min + 1e-6)
+        return torch.clamp(value, 0.0, 1.0)
 
-        safe_background = torch.clamp(1.0 - dilated, 0.0, 1.0)
-
-        return safe_background
-
-    def normalize_map(self, u):
-        u_min = u.amin(dim=(2, 3), keepdim=True)
-        u_max = u.amax(dim=(2, 3), keepdim=True)
-        u = (u - u_min) / (u_max - u_min + 1e-6)
-        return torch.clamp(u, 0.0, 1.0)
-
-    def normalize_uncertainty(self, u):
-        return self.normalize_map(u.detach())
-
-    def haar_wavelet_edge_map(self, x):
-        if x.shape[1] == 3:
-            gray = 0.299 * x[:, 0:1] + 0.587 * x[:, 1:2] + 0.114 * x[:, 2:3]
-        else:
-            gray = x
-
-        lh = torch.tensor(
-            [[-0.5, -0.5], [0.5, 0.5]],
-            dtype=gray.dtype,
-            device=gray.device
-        ).view(1, 1, 2, 2)
-
-        hl = torch.tensor(
-            [[-0.5, 0.5], [-0.5, 0.5]],
-            dtype=gray.dtype,
-            device=gray.device
-        ).view(1, 1, 2, 2)
-
-        hh = torch.tensor(
-            [[0.5, -0.5], [-0.5, 0.5]],
-            dtype=gray.dtype,
-            device=gray.device
-        ).view(1, 1, 2, 2)
-
-        gray_pad = F.pad(gray, (0, 1, 0, 1), mode="reflect")
-
-        edge_lh = F.conv2d(gray_pad, lh)
-        edge_hl = F.conv2d(gray_pad, hl)
-        edge_hh = F.conv2d(gray_pad, hh)
-
-        edge = torch.sqrt(
-            edge_lh.pow(2)
-            + edge_hl.pow(2)
-            + edge_hh.pow(2)
-            + 1e-6
-        )
-
-        edge = edge[:, :, :gray.shape[-2], :gray.shape[-1]]
-
-        return self.normalize_map(edge)
+    def gray_wavelet_edge_map(self, images):
+        gray = images.mean(dim=1, keepdim=True)
+        low = F.avg_pool2d(gray, kernel_size=5, stride=1, padding=2)
+        high = torch.abs(gray - low)
+        return self.normalize_map(high)
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
         p2 = torch.sigmoid(logit2)
-
-        confidence = torch.clamp(
-            1.0 - uncertainty_map,
-            min=0.0,
-            max=1.0
-        )
-
+        confidence = torch.clamp(1.0 - uncertainty_map, 0.0, 1.0)
         return (torch.abs(p1 - p2) * confidence).mean()
 
-    def uncertainty_gated_edge_loss(
-        self,
-        prediction_logits,
-        target_mask,
-        band_target,
-        uncertainty_map,
-        image_edge_map
-    ):
-        edge_confidence = 0.50 + 0.50 * image_edge_map
-
-        edge_focus = torch.clamp(
-            band_target * (1.0 + uncertainty_map) * edge_confidence,
-            min=0.0,
-            max=2.0
-        )
-
+    def uncertainty_gated_edge_loss(self, prediction_logits, target_mask, band_target, uncertainty_map):
+        edge_focus = torch.clamp(band_target * (1.0 + uncertainty_map), 0.0, 2.0)
         edge_weight = 1.0 + edge_focus
+        return self.weighted_seg_loss(prediction_logits, target_mask, pixel_weight=edge_weight)
 
-        return self.weighted_seg_loss(
-            prediction_logits,
-            target_mask,
-            pixel_weight=edge_weight
-        )
+    def wavelet_boundary_loss(self, prediction_logits, target_mask, band_target, gray_edge_map):
+        wavelet_band = torch.clamp(band_target * (0.5 + gray_edge_map), 0.0, 1.5)
+        pixel_weight = 1.0 + wavelet_band
+        return self.weighted_seg_loss(prediction_logits, target_mask, pixel_weight=pixel_weight)
 
-    def safe_background_suppression_loss(
-        self,
-        prediction_logits,
-        safe_background,
-        uncertainty_map,
-        image_edge_map
-    ):
+    def safe_background_loss(self, prediction_logits, safe_background, uncertainty_map):
         probs = torch.sigmoid(prediction_logits)
+        confidence = torch.clamp(1.0 - uncertainty_map, 0.0, 1.0)
+        weight = safe_background * confidence
+        loss = -torch.log(1.0 - probs + 1e-6)
+        return (loss * weight).sum() / (weight.sum() + 1e-6)
 
-        confidence = torch.clamp(
-            1.0 - uncertainty_map,
-            min=0.0,
-            max=1.0
-        )
+    def teacher_consistency_loss(self, student_logits, teacher_logits, uncertainty_map):
+        if teacher_logits is None:
+            return student_logits.sum() * 0.0
 
-        smooth_background = torch.clamp(1.0 - image_edge_map, 0.0, 1.0)
-        weight = safe_background * confidence * smooth_background
-
-        false_positive_penalty = -torch.log(1.0 - probs + 1e-6)
-
-        return (false_positive_penalty * weight).sum() / (weight.sum() + 1e-6)
-
-    def soft_wavelet_edge_loss(self, prediction_logits, target_mask):
-        pred_prob = torch.sigmoid(prediction_logits)
-        pred_edge = self.haar_wavelet_edge_map(pred_prob)
-        target_edge = self.haar_wavelet_edge_map(target_mask)
-
-        bce = F.binary_cross_entropy(
-            torch.clamp(pred_edge, 1e-6, 1.0 - 1e-6),
-            target_edge,
-            reduction="mean"
-        )
-
-        intersection = (pred_edge * target_edge).sum(dim=(1, 2, 3))
-        denominator = pred_edge.sum(dim=(1, 2, 3)) + target_edge.sum(dim=(1, 2, 3))
-        dice = 1.0 - (2.0 * intersection + 1.0) / (denominator + 1.0)
-
-        return bce + dice.mean()
+        student_probs = torch.sigmoid(student_logits)
+        teacher_probs = torch.sigmoid(teacher_logits.detach())
+        confidence = torch.clamp(1.0 - uncertainty_map, 0.0, 1.0)
+        return (torch.abs(student_probs - teacher_probs) * confidence).mean()
 
     def forward(self, sample):
         x = sample["images"]
         y = sample["masks"]
+        teacher_logits = sample.get("teacher_prediction", None)
 
         base_size = x.shape[-2:]
 
         pvt = self.pvt(x)
-
         x1_pvt = pvt[0]
-        x2_pvt = pvt[1]
-        x3_pvt = pvt[2]
-        x4_pvt = pvt[3]
-
-        x2_pvt = self.Translayer_pvt2(x2_pvt)
-        x3_pvt = self.Translayer_pvt3(x3_pvt)
-        x4_pvt = self.Translayer_pvt4(x4_pvt)
+        x2_pvt = self.Translayer_pvt2(pvt[1])
+        x3_pvt = self.Translayer_pvt3(pvt[2])
+        x4_pvt = self.Translayer_pvt4(pvt[3])
 
         f1, a1 = self.decoder1(x4_pvt, x3_pvt, x2_pvt)
         out1 = self.res(a1, base_size)
@@ -678,27 +512,12 @@ class FocusNet(nn.Module):
         out2 = self.res(a2, base_size)
 
         x_t = self.context(x1_pvt)
+        coarse_uncertainty = torch.abs(torch.sigmoid(a1) - torch.sigmoid(a2))
 
-        coarse_uncertainty = torch.abs(
-            torch.sigmoid(a1) - torch.sigmoid(a2)
-        )
-
-        f3, a3, _ = self.attention(
-            f1,
-            x_t,
-            a1,
-            coarse_uncertainty
-        )
-
+        f3, a3, _ = self.attention(f1, x_t, a1, coarse_uncertainty)
         out3 = self.res(a3, base_size)
 
-        f4, a4, _ = self.attention(
-            f2,
-            x_t,
-            a2,
-            coarse_uncertainty
-        )
-
+        f4, a4, _ = self.attention(f2, x_t, a2, coarse_uncertainty)
         out4 = self.res(a4, base_size)
 
         out = out1 + out2 + out3 + out4
@@ -708,25 +527,17 @@ class FocusNet(nn.Module):
         band_pred_up = self.res(band_pred, base_size)
 
         uncertainty_full = self.res(coarse_uncertainty, base_size)
-        uncertainty_full = self.normalize_uncertainty(uncertainty_full)
+        uncertainty_full = self.normalize_map(uncertainty_full)
 
-        image_edge_map = self.haar_wavelet_edge_map(x)
-        band_target = self.make_band_target(
-            y,
-            kernel_size=self.band_kernel_size
-        )
-        safe_background = self.make_safe_background(
-            y,
-            kernel_size=self.safe_background_kernel_size
-        )
-
-        edge_confidence = 0.50 + 0.50 * image_edge_map
+        band_target = self.make_band_target(y, kernel_size=self.band_kernel_size)
+        safe_background = self.make_safe_background(y, kernel_size=self.safe_background_kernel_size)
+        gray_edge_map = self.gray_wavelet_edge_map(x)
 
         pixel_weight = (
             1.0
-            + 0.65 * band_target * edge_confidence
-            + 0.35 * uncertainty_full
-            + 0.60 * band_target * uncertainty_full * edge_confidence
+            + 0.60 * band_target
+            + 0.40 * uncertainty_full
+            + 0.40 * band_target * gray_edge_map
         )
 
         loss1 = self.seg_loss(out1, y)
@@ -741,57 +552,56 @@ class FocusNet(nn.Module):
             + self.loss_w4 * loss4
         )
 
-        loss_final = self.weighted_seg_loss(
-            out,
-            y,
-            pixel_weight=pixel_weight
-        )
-
-        loss_focal_tversky = self.focal_tversky_loss(out, y)
+        loss_final = self.weighted_seg_loss(out, y, pixel_weight=pixel_weight)
 
         loss_band = self.weighted_seg_loss(
             band_pred_up,
             band_target,
-            pixel_weight=1.0 + band_target * (1.0 + image_edge_map)
+            pixel_weight=1.0 + band_target + 0.50 * gray_edge_map
         )
 
         loss_ugel = self.uncertainty_gated_edge_loss(
             prediction_logits=out,
             target_mask=y,
             band_target=band_target,
-            uncertainty_map=uncertainty_full,
-            image_edge_map=image_edge_map
+            uncertainty_map=uncertainty_full
         )
 
-        loss_wavelet_edge = self.soft_wavelet_edge_loss(
+        loss_wavelet = self.wavelet_boundary_loss(
             prediction_logits=out,
-            target_mask=y
+            target_mask=y,
+            band_target=band_target,
+            gray_edge_map=gray_edge_map
         )
 
-        loss_safe_background = self.safe_background_suppression_loss(
+        loss_safe_background = self.safe_background_loss(
             prediction_logits=out,
             safe_background=safe_background,
-            uncertainty_map=uncertainty_full,
-            image_edge_map=image_edge_map
+            uncertainty_map=uncertainty_full
         )
 
-        loss_consistency = self.selective_agreement_loss(
-            out1,
-            out2,
-            uncertainty_full
+        loss_focal_tversky = self.focal_tversky_loss(out, y)
+
+        loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
+
+        loss_teacher = self.teacher_consistency_loss(
+            student_logits=out,
+            teacher_logits=teacher_logits,
+            uncertainty_map=uncertainty_full
         )
 
-        modality_weights = self.get_modality_weights(sample)
+        weights = self.get_loss_weights(sample)
 
         loss = (
             loss_aux
             + self.final_loss_weight * loss_final
-            + modality_weights["focal_tversky"] * loss_focal_tversky
-            + self.band_loss_weight * loss_band
-            + modality_weights["ugel"] * loss_ugel
-            + modality_weights["wavelet_edge"] * loss_wavelet_edge
-            + modality_weights["safe_background"] * loss_safe_background
+            + weights["band"] * loss_band
+            + weights["ugel"] * loss_ugel
+            + weights["wavelet"] * loss_wavelet
+            + weights["safe_background"] * loss_safe_background
+            + weights["focal_tversky"] * loss_focal_tversky
             + self.consistency_weight * loss_consistency
+            + weights["teacher"] * loss_teacher
         )
 
         return {
@@ -799,10 +609,11 @@ class FocusNet(nn.Module):
             "loss": loss,
             "loss_aux": loss_aux.detach(),
             "loss_final": loss_final.detach(),
-            "loss_focal_tversky": loss_focal_tversky.detach(),
             "loss_band": loss_band.detach(),
             "loss_ugel": loss_ugel.detach(),
-            "loss_wavelet_edge": loss_wavelet_edge.detach(),
+            "loss_wavelet": loss_wavelet.detach(),
             "loss_safe_background": loss_safe_background.detach(),
-            "loss_consistency": loss_consistency.detach()
+            "loss_focal_tversky": loss_focal_tversky.detach(),
+            "loss_consistency": loss_consistency.detach(),
+            "loss_teacher": loss_teacher.detach()
         }

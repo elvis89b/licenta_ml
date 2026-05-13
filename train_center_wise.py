@@ -8,7 +8,6 @@ import albumentations as A
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
 import wandb
 
 from sklearn.utils import shuffle
@@ -18,11 +17,9 @@ from model.FocusNet import FocusNet
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 
 
-VARIANT_SLUG = "wavelet_adaptive_ugel_ema"
-VARIANT_NAME = "DGFR+BandHead+WaveletAdaptiveUGEL+EMA"
-
+VARIANT_SLUG = "region_adaptive_hybrid_supervision_ema"
+VARIANT_NAME = "DGFR+BandHead+RegionAdaptiveHybridSupervision+EMA"
 EMA_DECAY = 0.995
-EMA_CONSISTENCY_WEIGHT = 0.03
 
 
 def infer_modality_from_path(path):
@@ -59,12 +56,10 @@ def load_polypdb_center_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
-
     images = images_jpg + images_png
 
     for image_path in images:
         image_name = os.path.splitext(os.path.basename(image_path))[0]
-
         mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
         mask_png = os.path.join(path, "masks", f"{image_name}.png")
 
@@ -105,7 +100,6 @@ class PolypDB_DATASET(Dataset):
 
         if image is None:
             raise ValueError(f"Could not read image: {image_path}")
-
         if mask is None:
             raise ValueError(f"Could not read mask: {mask_path}")
 
@@ -125,33 +119,29 @@ class PolypDB_DATASET(Dataset):
         mask = (mask > 0.5).astype(np.float32)
 
         modality = infer_modality_from_path(image_path)
+        center = infer_center_from_path(image_path)
 
-        return image, mask, modality
+        return image, mask, modality, center
 
     def __len__(self):
         return self.n_samples
 
 
-def create_ema_model(model):
-    ema_model = copy.deepcopy(model)
-    ema_model.eval()
-
-    for parameter in ema_model.parameters():
-        parameter.requires_grad_(False)
-
-    return ema_model
+def set_requires_grad(model, requires_grad):
+    for param in model.parameters():
+        param.requires_grad = requires_grad
 
 
-@torch.no_grad()
-def update_ema_model(model, ema_model, decay):
-    model_state = model.state_dict()
-    ema_state = ema_model.state_dict()
+def update_ema_model(student_model, ema_model, decay):
+    with torch.no_grad():
+        student_state = student_model.state_dict()
+        ema_state = ema_model.state_dict()
 
-    for key in ema_state.keys():
-        if torch.is_floating_point(ema_state[key]):
-            ema_state[key].mul_(decay).add_(model_state[key], alpha=1.0 - decay)
-        else:
-            ema_state[key].copy_(model_state[key])
+        for key in ema_state.keys():
+            if not torch.is_floating_point(ema_state[key]):
+                ema_state[key].copy_(student_state[key])
+            else:
+                ema_state[key].mul_(decay).add_(student_state[key], alpha=1.0 - decay)
 
 
 def train(model, ema_model, loader, optimizer, device):
@@ -164,55 +154,52 @@ def train(model, ema_model, loader, optimizer, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    epoch_loss_final = 0.0
-    epoch_loss_ft = 0.0
-    epoch_loss_band = 0.0
-    epoch_loss_ugel = 0.0
-    epoch_loss_wavelet = 0.0
-    epoch_loss_safe_background = 0.0
-    epoch_loss_consistency = 0.0
-    epoch_loss_ema = 0.0
+    loss_sums = {
+        "loss_final": 0.0,
+        "loss_band": 0.0,
+        "loss_ugel": 0.0,
+        "loss_wavelet": 0.0,
+        "loss_safe_background": 0.0,
+        "loss_focal_tversky": 0.0,
+        "loss_consistency": 0.0,
+        "loss_teacher": 0.0,
+    }
 
-    for x, y, modalities in loader:
+    for x, y, modalities, centers in loader:
         x = x.to(device, dtype=torch.float32)
         y = y.to(device, dtype=torch.float32)
+
+        with torch.no_grad():
+            teacher_sample = {
+                "images": x,
+                "masks": y,
+                "modalities": modalities,
+                "centers": centers,
+            }
+            teacher_out = ema_model(teacher_sample)
+            teacher_prediction = teacher_out["prediction"].detach()
 
         optimizer.zero_grad()
 
         sample = {
             "images": x,
             "masks": y,
-            "modalities": modalities
+            "modalities": modalities,
+            "centers": centers,
+            "teacher_prediction": teacher_prediction,
         }
 
         out = model(sample)
         y_pred = out["prediction"]
-
-        with torch.no_grad():
-            ema_out = ema_model(sample)
-            ema_pred = ema_out["prediction"]
-
-        loss_ema = F.mse_loss(
-            torch.sigmoid(y_pred),
-            torch.sigmoid(ema_pred)
-        )
-
-        loss = out["loss"] + EMA_CONSISTENCY_WEIGHT * loss_ema
+        loss = out["loss"]
 
         loss.backward()
         optimizer.step()
-
         update_ema_model(model, ema_model, EMA_DECAY)
 
         epoch_loss += loss.item()
-        epoch_loss_final += out["loss_final"].item()
-        epoch_loss_ft += out["loss_focal_tversky"].item()
-        epoch_loss_band += out["loss_band"].item()
-        epoch_loss_ugel += out["loss_ugel"].item()
-        epoch_loss_wavelet += out["loss_wavelet_edge"].item()
-        epoch_loss_safe_background += out["loss_safe_background"].item()
-        epoch_loss_consistency += out["loss_consistency"].item()
-        epoch_loss_ema += loss_ema.item()
+        for key in loss_sums.keys():
+            loss_sums[key] += out[key].item()
 
         batch_jac = []
         batch_f1 = []
@@ -234,23 +221,13 @@ def train(model, ema_model, loader, optimizer, device):
         epoch_precision += np.mean(batch_precision)
 
     n_batches = len(loader)
-
     epoch_loss /= n_batches
     epoch_jac /= n_batches
     epoch_f1 /= n_batches
     epoch_recall /= n_batches
     epoch_precision /= n_batches
 
-    loss_parts = {
-        "loss_final": epoch_loss_final / n_batches,
-        "loss_focal_tversky": epoch_loss_ft / n_batches,
-        "loss_band": epoch_loss_band / n_batches,
-        "loss_ugel": epoch_loss_ugel / n_batches,
-        "loss_wavelet_edge": epoch_loss_wavelet / n_batches,
-        "loss_safe_background": epoch_loss_safe_background / n_batches,
-        "loss_consistency": epoch_loss_consistency / n_batches,
-        "loss_ema": epoch_loss_ema / n_batches
-    }
+    loss_parts = {key: value / n_batches for key, value in loss_sums.items()}
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
 
@@ -264,23 +241,27 @@ def evaluate(model, loader, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    epoch_loss_final = 0.0
-    epoch_loss_ft = 0.0
-    epoch_loss_band = 0.0
-    epoch_loss_ugel = 0.0
-    epoch_loss_wavelet = 0.0
-    epoch_loss_safe_background = 0.0
-    epoch_loss_consistency = 0.0
+    loss_sums = {
+        "loss_final": 0.0,
+        "loss_band": 0.0,
+        "loss_ugel": 0.0,
+        "loss_wavelet": 0.0,
+        "loss_safe_background": 0.0,
+        "loss_focal_tversky": 0.0,
+        "loss_consistency": 0.0,
+        "loss_teacher": 0.0,
+    }
 
     with torch.no_grad():
-        for x, y, modalities in loader:
+        for x, y, modalities, centers in loader:
             x = x.to(device, dtype=torch.float32)
             y = y.to(device, dtype=torch.float32)
 
             sample = {
                 "images": x,
                 "masks": y,
-                "modalities": modalities
+                "modalities": modalities,
+                "centers": centers,
             }
 
             out = model(sample)
@@ -288,13 +269,8 @@ def evaluate(model, loader, device):
             loss = out["loss"]
 
             epoch_loss += loss.item()
-            epoch_loss_final += out["loss_final"].item()
-            epoch_loss_ft += out["loss_focal_tversky"].item()
-            epoch_loss_band += out["loss_band"].item()
-            epoch_loss_ugel += out["loss_ugel"].item()
-            epoch_loss_wavelet += out["loss_wavelet_edge"].item()
-            epoch_loss_safe_background += out["loss_safe_background"].item()
-            epoch_loss_consistency += out["loss_consistency"].item()
+            for key in loss_sums.keys():
+                loss_sums[key] += out[key].item()
 
             batch_jac = []
             batch_f1 = []
@@ -316,22 +292,13 @@ def evaluate(model, loader, device):
             epoch_precision += np.mean(batch_precision)
 
     n_batches = len(loader)
-
     epoch_loss /= n_batches
     epoch_jac /= n_batches
     epoch_f1 /= n_batches
     epoch_recall /= n_batches
     epoch_precision /= n_batches
 
-    loss_parts = {
-        "loss_final": epoch_loss_final / n_batches,
-        "loss_focal_tversky": epoch_loss_ft / n_batches,
-        "loss_band": epoch_loss_band / n_batches,
-        "loss_ugel": epoch_loss_ugel / n_batches,
-        "loss_wavelet_edge": epoch_loss_wavelet / n_batches,
-        "loss_safe_background": epoch_loss_safe_background / n_batches,
-        "loss_consistency": epoch_loss_consistency / n_batches
-    }
+    loss_parts = {key: value / n_batches for key, value in loss_sums.items()}
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
 
@@ -342,7 +309,7 @@ def run_experiment(path):
     current_center = infer_center_from_path(path)
 
     experiment_name = (
-        f"FocusNet_DGFR_BandHead_WaveletAdaptiveUGEL_EMA_"
+        f"FocusNet_DGFR_BandHead_RegionAdaptiveHybridSupervision_EMA_"
         f"center_{current_center}_{current_modality}"
     )
 
@@ -363,7 +330,6 @@ def run_experiment(path):
 
     image_size = 256
     size = (image_size, image_size)
-
     batch_size = 16
     num_epochs = 500
     lr = 1e-4
@@ -392,10 +358,10 @@ def run_experiment(path):
             "lr": lr,
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
+            "ema_decay": EMA_DECAY,
             "train_path": path,
-            "loss": "DiceBCE + FocalTversky + Band + WaveletAdaptiveUGEL + WaveletEdge + SafeBG + Consistency",
-            "training_regularization": "EMA teacher consistency",
-            "augmentation": "Spatial Aug only"
+            "loss": "Region-adaptive DiceBCE + Band + UGEL + GrayWavelet + SafeBG + FT + EMA",
+            "augmentation": "Spatial Aug only",
         }
     )
 
@@ -410,25 +376,20 @@ def run_experiment(path):
     data_str += f"Weight Decay: {weight_decay}\n"
     data_str += f"Epochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
+    data_str += f"EMA Decay: {EMA_DECAY}\n"
     data_str += f"Path: {path}\n"
     data_str += f"Checkpoint: {checkpoint_path}\n"
-    data_str += f"EMA Decay: {EMA_DECAY}\n"
-    data_str += f"EMA Consistency Weight: {EMA_CONSISTENCY_WEIGHT}\n"
-
     print_and_save(train_log_path, data_str)
 
-    train_samples, valid_samples, test_samples = load_polypdb_center_data(path)
+    train_samples, valid_samples, _ = load_polypdb_center_data(path)
     train_samples = shuffle(train_samples, random_state=42)
 
-    data_str = "Dataset Size:\n"
-    data_str += f"Train: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
+    data_str = f"Dataset Size:\n"
+    data_str += f"Train: {len(train_samples)} - Valid: {len(valid_samples)}\n"
     print_and_save(train_log_path, data_str)
 
     if len(train_samples) == 0 or len(valid_samples) == 0:
-        print_and_save(
-            train_log_path,
-            f"Skipping {current_center}/{current_modality}: empty train or validation split.\n"
-        )
+        print_and_save(train_log_path, f"Skipping {current_center}/{current_modality}: empty train or validation split.\n")
         wandb.finish()
         return
 
@@ -436,68 +397,32 @@ def run_experiment(path):
         A.Rotate(limit=35, p=0.30),
         A.HorizontalFlip(p=0.30),
         A.VerticalFlip(p=0.30),
-        A.CoarseDropout(
-            max_holes=8,
-            max_height=24,
-            max_width=24,
-            p=0.20
-        )
+        A.CoarseDropout(max_holes=8, max_height=24, max_width=24, p=0.20),
     ])
 
-    train_dataset = PolypDB_DATASET(
-        samples_path=train_samples,
-        size=size,
-        transform=transform
-    )
+    train_dataset = PolypDB_DATASET(train_samples, size=size, transform=transform)
+    valid_dataset = PolypDB_DATASET(valid_samples, size=size, transform=None)
 
-    valid_dataset = PolypDB_DATASET(
-        samples_path=valid_samples,
-        size=size,
-        transform=None
-    )
-
-    train_loader = DataLoader(
-        dataset=train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=2,
-        pin_memory=True
-    )
-
-    valid_loader = DataLoader(
-        dataset=valid_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=2,
-        pin_memory=True
-    )
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = FocusNet().to(device)
-    ema_model = create_ema_model(model).to(device)
+    ema_model = copy.deepcopy(model).to(device)
+    set_requires_grad(ema_model, False)
+    ema_model.eval()
 
     print(f"train model: {model_name}")
     print(f"experiment: {experiment_name}")
     print(f"path: {path}")
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=lr,
-        weight_decay=weight_decay
-    )
-
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode="min",
-        patience=5,
-        verbose=True
-    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, verbose=True)
 
     data_str = "Optimizer: AdamW\n"
     data_str += "Scheduler: ReduceLROnPlateau\n"
-    data_str += "Loss: DiceBCE + FocalTversky + Band + WaveletAdaptiveUGEL + WaveletEdge + SafeBG + Consistency\n"
-    data_str += "Training Regularization: EMA teacher consistency\n"
+    data_str += "Loss: Region-adaptive DiceBCE + Band + UGEL + GrayWavelet + SafeBG + FT + EMA\n"
     data_str += "Augmentation: Spatial Aug only\n"
     print_and_save(train_log_path, data_str)
 
@@ -507,30 +432,17 @@ def run_experiment(path):
     for epoch in range(num_epochs):
         start_time = time.time()
 
-        train_loss, train_metrics, train_loss_parts = train(
-            model=model,
-            ema_model=ema_model,
-            loader=train_loader,
-            optimizer=optimizer,
-            device=device
-        )
-
-        valid_loss, valid_metrics, valid_loss_parts = evaluate(
-            model=ema_model,
-            loader=valid_loader,
-            device=device
-        )
+        train_loss, train_metrics, train_loss_parts = train(model, ema_model, train_loader, optimizer, device)
+        valid_loss, valid_metrics, valid_loss_parts = evaluate(ema_model, valid_loader, device)
 
         scheduler.step(valid_loss)
         current_lr = optimizer.param_groups[0]["lr"]
 
         if valid_metrics[1] > best_valid_f1:
             data_str = (
-                f"Valid F1 improved from {best_valid_f1:2.4f} "
-                f"to {valid_metrics[1]:2.4f}. "
-                f"Saving EMA checkpoint: {checkpoint_path}"
+                f"Valid EMA F1 improved from {best_valid_f1:2.4f} "
+                f"to {valid_metrics[1]:2.4f}. Saving checkpoint: {checkpoint_path}"
             )
-
             print_and_save(train_log_path, data_str)
             best_valid_f1 = valid_metrics[1]
             torch.save(ema_model.state_dict(), checkpoint_path)
@@ -551,22 +463,9 @@ def run_experiment(path):
             "valid/f1": valid_metrics[1],
             "valid/recall": valid_metrics[2],
             "valid/precision": valid_metrics[3],
-            "train/loss_final": train_loss_parts["loss_final"],
-            "train/loss_focal_tversky": train_loss_parts["loss_focal_tversky"],
-            "train/loss_band": train_loss_parts["loss_band"],
-            "train/loss_ugel": train_loss_parts["loss_ugel"],
-            "train/loss_wavelet_edge": train_loss_parts["loss_wavelet_edge"],
-            "train/loss_safe_background": train_loss_parts["loss_safe_background"],
-            "train/loss_consistency": train_loss_parts["loss_consistency"],
-            "train/loss_ema": train_loss_parts["loss_ema"],
-            "valid/loss_final": valid_loss_parts["loss_final"],
-            "valid/loss_focal_tversky": valid_loss_parts["loss_focal_tversky"],
-            "valid/loss_band": valid_loss_parts["loss_band"],
-            "valid/loss_ugel": valid_loss_parts["loss_ugel"],
-            "valid/loss_wavelet_edge": valid_loss_parts["loss_wavelet_edge"],
-            "valid/loss_safe_background": valid_loss_parts["loss_safe_background"],
-            "valid/loss_consistency": valid_loss_parts["loss_consistency"],
-            "best_valid_f1": best_valid_f1
+            "best_valid_f1": best_valid_f1,
+            **{f"train/{k}": v for k, v in train_loss_parts.items()},
+            **{f"valid/{k}": v for k, v in valid_loss_parts.items()},
         })
 
         end_time = time.time()
@@ -590,30 +489,23 @@ def run_experiment(path):
         data_str += (
             f"\t Valid Loss Parts "
             f"- Final: {valid_loss_parts['loss_final']:.4f} "
-            f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
             f"- Band: {valid_loss_parts['loss_band']:.4f} "
             f"- UGEL: {valid_loss_parts['loss_ugel']:.4f} "
-            f"- Wavelet: {valid_loss_parts['loss_wavelet_edge']:.4f} "
+            f"- Wavelet: {valid_loss_parts['loss_wavelet']:.4f} "
             f"- SafeBG: {valid_loss_parts['loss_safe_background']:.4f} "
-            f"- Consistency: {valid_loss_parts['loss_consistency']:.4f}\n"
+            f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
+            f"- Consistency: {valid_loss_parts['loss_consistency']:.4f} "
+            f"- Teacher: {valid_loss_parts['loss_teacher']:.4f}\n"
         )
         print_and_save(train_log_path, data_str)
 
         if early_stopping_count == early_stopping_patience:
-            data_str = (
-                f"Early stopping: validation F1 stopped improving for "
-                f"{early_stopping_patience} consecutive epochs.\n"
-            )
+            data_str = f"Early stopping: validation F1 stopped improving for {early_stopping_patience} consecutive epochs.\n"
             print_and_save(train_log_path, data_str)
             break
 
     wandb.finish()
-
-    del model
-    del ema_model
-    del optimizer
-    del scheduler
-
+    del model, ema_model, optimizer, scheduler
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
@@ -635,5 +527,4 @@ if __name__ == "__main__":
         print("\n" + "=" * 100)
         print(f"Starting center-wise experiment for: {path}")
         print("=" * 100 + "\n")
-
         run_experiment(path)

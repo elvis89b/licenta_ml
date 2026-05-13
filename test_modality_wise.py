@@ -16,9 +16,10 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-VARIANT_SLUG = "wavelet_adaptive_ugel_ema"
+VARIANT_SLUG = "region_adaptive_hybrid_supervision_ema"
 
 THRESHOLD_CANDIDATES = [
+    0.25,
     0.30,
     0.35,
     0.40,
@@ -28,7 +29,8 @@ THRESHOLD_CANDIDATES = [
     0.60,
     0.65,
     0.70,
-    0.75
+    0.75,
+    0.80,
 ]
 
 EVAL_PROTOCOL = "paper"
@@ -41,12 +43,10 @@ def load_modality_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
-
     images = images_jpg + images_png
 
     for image_path in images:
         image_name = os.path.splitext(os.path.basename(image_path))[0]
-
         mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
         mask_png = os.path.join(path, "masks", f"{image_name}.png")
 
@@ -64,7 +64,6 @@ def load_modality_data(path):
 
 def split_data(path):
     samples = load_modality_data(path)
-
     total_len = len(samples)
     train_len = int(0.8 * total_len)
     val_len = int(0.1 * total_len)
@@ -113,12 +112,12 @@ def get_prediction(model, image, mask, modality):
     sample = {
         "images": image,
         "masks": mask,
-        "modalities": [modality]
+        "modalities": [modality],
+        "centers": ["UNKNOWN_CENTER"],
     }
 
     out = model(sample)
     y_pred = torch.sigmoid(out["prediction"])
-
     return y_pred
 
 
@@ -144,26 +143,9 @@ def calibrate_threshold(model, device, valid_samples, size, modality):
                 total=len(valid_samples),
                 desc=f"Calibrating threshold {threshold:.2f}"
             ):
-                image, mask, _, _ = prepare_sample(
-                    image_path=image_path,
-                    mask_path=mask_path,
-                    size=size,
-                    device=device
-                )
-
-                y_pred = get_prediction(
-                    model=model,
-                    image=image,
-                    mask=mask,
-                    modality=modality
-                )
-
-                score = calculate_metrics_with_threshold(
-                    mask=mask,
-                    y_pred_prob=y_pred,
-                    threshold=threshold
-                )
-
+                image, mask, _, _ = prepare_sample(image_path, mask_path, size, device)
+                y_pred = get_prediction(model, image, mask, modality)
+                score = calculate_metrics_with_threshold(mask, y_pred, threshold)
                 metrics_score = list(map(add, metrics_score, score))
 
             jaccard = metrics_score[0] / len(valid_samples)
@@ -177,7 +159,7 @@ def calibrate_threshold(model, device, valid_samples, size, modality):
                 "f1": f1,
                 "recall": recall,
                 "precision": precision,
-                "f2": f2
+                "f2": f2,
             }
 
             print(
@@ -195,12 +177,11 @@ def calibrate_threshold(model, device, valid_samples, size, modality):
             threshold_scores[t]["f1"],
             threshold_scores[t]["jaccard"],
             threshold_scores[t]["precision"],
-            threshold_scores[t]["f2"]
+            threshold_scores[t]["f2"],
         )
     )
 
     print(f"Selected threshold: {best_threshold:.2f}")
-
     return best_threshold
 
 
@@ -211,50 +192,27 @@ def evaluate(model, device, save_path, test_samples, size, modality, threshold):
     for _, (x, y) in tqdm(enumerate(test_samples), total=len(test_samples)):
         name = y.split("/")[-1].split(".")[0]
 
-        image, mask, save_img, save_mask = prepare_sample(
-            image_path=x,
-            mask_path=y,
-            size=size,
-            device=device
-        )
+        image, mask, save_img, save_mask = prepare_sample(x, y, size, device)
 
         with torch.no_grad():
             start_time = time.time()
-
-            y_pred_prob = get_prediction(
-                model=model,
-                image=image,
-                mask=mask,
-                modality=modality
-            )
-
+            y_pred_prob = get_prediction(model, image, mask, modality)
             end_time = time.time() - start_time
             time_taken.append(end_time)
 
-            score = calculate_metrics_with_threshold(
-                mask=mask,
-                y_pred_prob=y_pred_prob,
-                threshold=threshold
-            )
-
+            score = calculate_metrics_with_threshold(mask, y_pred_prob, threshold)
             metrics_score = list(map(add, metrics_score, score))
 
             y_pred = y_pred_prob[0].cpu().numpy()
             y_pred = np.squeeze(y_pred, axis=0)
             y_pred = y_pred > threshold
-            y_pred = y_pred.astype(np.int32)
-            y_pred = y_pred * 255
+            y_pred = y_pred.astype(np.int32) * 255
             y_pred = np.array(y_pred, dtype=np.uint8)
             y_pred = np.expand_dims(y_pred, axis=-1)
             y_pred = np.concatenate([y_pred, y_pred, y_pred], axis=2)
 
         line = np.ones((size[0], 10, 3), dtype=np.uint8) * 255
-
-        cat_images = np.concatenate(
-            [save_img, line, save_mask, line, y_pred],
-            axis=1
-        )
-
+        cat_images = np.concatenate([save_img, line, save_mask, line, y_pred], axis=1)
         cv2.imwrite(f"{save_path}/joint/{name}.jpg", cat_images)
         cv2.imwrite(f"{save_path}/mask/{name}.jpg", y_pred)
 
@@ -264,6 +222,7 @@ def evaluate(model, device, save_path, test_samples, size, modality, threshold):
     precision = metrics_score[3] / len(test_samples)
     acc = metrics_score[4] / len(test_samples)
     f2 = metrics_score[5] / len(test_samples)
+    mean_fps = 1 / np.mean(time_taken)
 
     print(
         f"Threshold: {threshold:.2f} - "
@@ -274,10 +233,6 @@ def evaluate(model, device, save_path, test_samples, size, modality, threshold):
         f"- Acc: {acc:1.4f} "
         f"- F2: {f2:1.4f}"
     )
-
-    mean_time_taken = np.mean(time_taken)
-    mean_fps = 1 / mean_time_taken
-
     print("Mean FPS: ", mean_fps)
 
     return {
@@ -288,7 +243,7 @@ def evaluate(model, device, save_path, test_samples, size, modality, threshold):
         "accuracy": acc,
         "f2": f2,
         "fps": mean_fps,
-        "threshold": threshold
+        "threshold": threshold,
     }
 
 
@@ -342,11 +297,7 @@ if __name__ == "__main__":
             print(f"Skipping {modality}: empty test split.")
             continue
 
-        save_path = (
-            f"files/modality_wise/{model_name}/"
-            f"results_{VARIANT_SLUG}/{modality}"
-        )
-
+        save_path = f"files/modality_wise/{model_name}/results_{VARIANT_SLUG}/{modality}"
         create_dir(save_path)
         create_dir(f"{save_path}/mask")
         create_dir(f"{save_path}/joint")
@@ -357,28 +308,12 @@ if __name__ == "__main__":
 
         print(f"test model: {model_name}")
 
-        threshold = calibrate_threshold(
-            model=model,
-            device=device,
-            valid_samples=valid_samples,
-            size=size,
-            modality=modality
-        )
+        threshold = calibrate_threshold(model, device, valid_samples, size, modality)
 
-        result = evaluate(
-            model=model,
-            device=device,
-            save_path=save_path,
-            test_samples=test_samples,
-            size=size,
-            modality=modality,
-            threshold=threshold
-        )
-
+        result = evaluate(model, device, save_path, test_samples, size, modality, threshold)
         summary_results[modality] = result
 
         del model
-
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 

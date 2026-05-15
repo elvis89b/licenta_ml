@@ -8,6 +8,7 @@ import albumentations as A
 import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 import wandb
 
 from sklearn.utils import shuffle
@@ -17,9 +18,12 @@ from model.FocusNet import FocusNet
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 
 
-VARIANT_SLUG = "region_adaptive_hybrid_supervision_ema"
-VARIANT_NAME = "DGFR+BandHead+RegionAdaptiveHybridSupervision+EMA"
+VARIANT_SLUG = "dynamic_spectral_uncertainty_expert_routing_ema"
+VARIANT_NAME = "DGFR+BandHead+DynamicSpectralUncertaintyExpertRouting+EMA"
+
 EMA_DECAY = 0.995
+EMA_CONSISTENCY_WEIGHT = 0.05
+EMA_CONFIDENCE_THRESHOLD = 0.70
 
 
 def infer_modality_from_path(path):
@@ -44,10 +48,12 @@ def load_polypdb_modality_data(path):
 
     images_jpg = sorted(glob(os.path.join(path, "images", "*.jpg")))
     images_png = sorted(glob(os.path.join(path, "images", "*.png")))
+
     images = images_jpg + images_png
 
     for image_path in images:
         image_name = os.path.splitext(os.path.basename(image_path))[0]
+
         mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
         mask_png = os.path.join(path, "masks", f"{image_name}.png")
 
@@ -65,8 +71,12 @@ def load_polypdb_modality_data(path):
     modality_val_len = int(0.1 * modality_len)
 
     train_samples = samples[:modality_train_len]
-    valid_samples = samples[modality_train_len:modality_train_len + modality_val_len]
-    test_samples = samples[modality_train_len + modality_val_len:]
+    valid_samples = samples[
+        modality_train_len:modality_train_len + modality_val_len
+    ]
+    test_samples = samples[
+        modality_train_len + modality_val_len:
+    ]
 
     return train_samples, valid_samples, test_samples
 
@@ -74,6 +84,7 @@ def load_polypdb_modality_data(path):
 class PolypDB_DATASET(Dataset):
     def __init__(self, samples_path, size, transform=None):
         super().__init__()
+
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
@@ -88,6 +99,7 @@ class PolypDB_DATASET(Dataset):
 
         if image is None:
             raise ValueError(f"Could not read image: {image_path}")
+
         if mask is None:
             raise ValueError(f"Could not read mask: {mask_path}")
 
@@ -96,8 +108,17 @@ class PolypDB_DATASET(Dataset):
             image = augmentations["image"]
             mask = augmentations["mask"]
 
-        image = cv2.resize(image, self.size, interpolation=cv2.INTER_LINEAR)
-        mask = cv2.resize(mask, self.size, interpolation=cv2.INTER_NEAREST)
+        image = cv2.resize(
+            image,
+            self.size,
+            interpolation=cv2.INTER_LINEAR
+        )
+
+        mask = cv2.resize(
+            mask,
+            self.size,
+            interpolation=cv2.INTER_NEAREST
+        )
 
         image = np.transpose(image, (2, 0, 1))
         image = image.astype(np.float32) / 255.0
@@ -107,29 +128,61 @@ class PolypDB_DATASET(Dataset):
         mask = (mask > 0.5).astype(np.float32)
 
         modality = infer_modality_from_path(image_path)
-        center = "UNKNOWN_CENTER"
 
-        return image, mask, modality, center
+        return image, mask, modality
 
     def __len__(self):
         return self.n_samples
 
 
-def set_requires_grad(model, requires_grad):
-    for param in model.parameters():
-        param.requires_grad = requires_grad
+def confidence_filtered_ema_consistency_loss(
+    student_logits,
+    teacher_logits,
+    confidence_threshold
+):
+    student_probs = torch.sigmoid(student_logits)
+    teacher_probs = torch.sigmoid(teacher_logits.detach())
+
+    teacher_confidence = torch.maximum(
+        teacher_probs,
+        1.0 - teacher_probs
+    )
+
+    confidence_mask = (
+        teacher_confidence >= confidence_threshold
+    ).float()
+
+    consistency_map = F.mse_loss(
+        student_probs,
+        teacher_probs,
+        reduction="none"
+    )
+
+    consistency_loss = (
+        consistency_map * confidence_mask
+    ).sum() / (
+        confidence_mask.sum() + 1e-6
+    )
+
+    return consistency_loss
 
 
 def update_ema_model(student_model, ema_model, decay):
     with torch.no_grad():
-        student_state = student_model.state_dict()
-        ema_state = ema_model.state_dict()
+        for ema_param, student_param in zip(
+            ema_model.parameters(),
+            student_model.parameters()
+        ):
+            ema_param.data.mul_(decay).add_(
+                student_param.data,
+                alpha=1.0 - decay
+            )
 
-        for key in ema_state.keys():
-            if not torch.is_floating_point(ema_state[key]):
-                ema_state[key].copy_(student_state[key])
-            else:
-                ema_state[key].mul_(decay).add_(student_state[key], alpha=1.0 - decay)
+        for ema_buffer, student_buffer in zip(
+            ema_model.buffers(),
+            student_model.buffers()
+        ):
+            ema_buffer.copy_(student_buffer)
 
 
 def train(model, ema_model, loader, optimizer, device):
@@ -137,67 +190,84 @@ def train(model, ema_model, loader, optimizer, device):
     ema_model.eval()
 
     epoch_loss = 0.0
+    epoch_model_loss = 0.0
+    epoch_ema_consistency = 0.0
+
     epoch_jac = 0.0
     epoch_f1 = 0.0
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_sums = {
+    loss_accumulator = {
         "loss_final": 0.0,
         "loss_band": 0.0,
+        "loss_dynamic_expert": 0.0,
         "loss_ugel": 0.0,
-        "loss_wavelet": 0.0,
-        "loss_safe_background": 0.0,
-        "loss_focal_tversky": 0.0,
+        "loss_spectral": 0.0,
+        "loss_region": 0.0,
         "loss_consistency": 0.0,
-        "loss_teacher": 0.0,
+        "loss_router_entropy": 0.0,
+        "router_ugel_weight": 0.0,
+        "router_spectral_weight": 0.0,
+        "router_region_weight": 0.0
     }
 
-    for x, y, modalities, centers in loader:
+    for x, y, modalities in loader:
         x = x.to(device, dtype=torch.float32)
         y = y.to(device, dtype=torch.float32)
-
-        with torch.no_grad():
-            teacher_sample = {
-                "images": x,
-                "masks": y,
-                "modalities": modalities,
-                "centers": centers,
-            }
-            teacher_out = ema_model(teacher_sample)
-            teacher_prediction = teacher_out["prediction"].detach()
 
         optimizer.zero_grad()
 
         sample = {
             "images": x,
             "masks": y,
-            "modalities": modalities,
-            "centers": centers,
-            "teacher_prediction": teacher_prediction,
+            "modalities": modalities
         }
 
-        out = model(sample)
-        y_pred = out["prediction"]
-        loss = out["loss"]
+        student_out = model(sample)
 
-        loss.backward()
+        with torch.no_grad():
+            teacher_out = ema_model(sample)
+
+        ema_consistency_loss = confidence_filtered_ema_consistency_loss(
+            student_logits=student_out["prediction"],
+            teacher_logits=teacher_out["prediction"],
+            confidence_threshold=EMA_CONFIDENCE_THRESHOLD
+        )
+
+        model_loss = student_out["loss"]
+
+        total_loss = (
+            model_loss
+            + EMA_CONSISTENCY_WEIGHT * ema_consistency_loss
+        )
+
+        total_loss.backward()
         optimizer.step()
-        update_ema_model(model, ema_model, EMA_DECAY)
 
-        epoch_loss += loss.item()
-        for key in loss_sums.keys():
-            loss_sums[key] += out[key].item()
+        update_ema_model(
+            student_model=model,
+            ema_model=ema_model,
+            decay=EMA_DECAY
+        )
+
+        epoch_loss += total_loss.item()
+        epoch_model_loss += model_loss.item()
+        epoch_ema_consistency += ema_consistency_loss.item()
+
+        for key in loss_accumulator.keys():
+            loss_accumulator[key] += student_out[key].item()
+
+        y_pred = torch.sigmoid(student_out["prediction"])
 
         batch_jac = []
         batch_f1 = []
         batch_recall = []
         batch_precision = []
 
-        y_pred = torch.sigmoid(y_pred)
-
         for yt, yp in zip(y, y_pred):
             score = calculate_metrics(yt, yp)
+
             batch_jac.append(score[0])
             batch_f1.append(score[1])
             batch_recall.append(score[2])
@@ -209,15 +279,24 @@ def train(model, ema_model, loader, optimizer, device):
         epoch_precision += np.mean(batch_precision)
 
     n_batches = len(loader)
-    epoch_loss /= n_batches
-    epoch_jac /= n_batches
-    epoch_f1 /= n_batches
-    epoch_recall /= n_batches
-    epoch_precision /= n_batches
 
-    loss_parts = {key: value / n_batches for key, value in loss_sums.items()}
+    metrics = [
+        epoch_jac / n_batches,
+        epoch_f1 / n_batches,
+        epoch_recall / n_batches,
+        epoch_precision / n_batches
+    ]
 
-    return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
+    loss_parts = {
+        "total_loss": epoch_loss / n_batches,
+        "model_loss": epoch_model_loss / n_batches,
+        "ema_consistency": epoch_ema_consistency / n_batches
+    }
+
+    for key in loss_accumulator.keys():
+        loss_parts[key] = loss_accumulator[key] / n_batches
+
+    return epoch_loss / n_batches, metrics, loss_parts
 
 
 def evaluate(model, loader, device):
@@ -229,46 +308,48 @@ def evaluate(model, loader, device):
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_sums = {
+    loss_accumulator = {
         "loss_final": 0.0,
         "loss_band": 0.0,
+        "loss_dynamic_expert": 0.0,
         "loss_ugel": 0.0,
-        "loss_wavelet": 0.0,
-        "loss_safe_background": 0.0,
-        "loss_focal_tversky": 0.0,
+        "loss_spectral": 0.0,
+        "loss_region": 0.0,
         "loss_consistency": 0.0,
-        "loss_teacher": 0.0,
+        "loss_router_entropy": 0.0,
+        "router_ugel_weight": 0.0,
+        "router_spectral_weight": 0.0,
+        "router_region_weight": 0.0
     }
 
     with torch.no_grad():
-        for x, y, modalities, centers in loader:
+        for x, y, modalities in loader:
             x = x.to(device, dtype=torch.float32)
             y = y.to(device, dtype=torch.float32)
 
             sample = {
                 "images": x,
                 "masks": y,
-                "modalities": modalities,
-                "centers": centers,
+                "modalities": modalities
             }
 
             out = model(sample)
-            y_pred = out["prediction"]
-            loss = out["loss"]
 
-            epoch_loss += loss.item()
-            for key in loss_sums.keys():
-                loss_sums[key] += out[key].item()
+            epoch_loss += out["loss"].item()
+
+            for key in loss_accumulator.keys():
+                loss_accumulator[key] += out[key].item()
+
+            y_pred = torch.sigmoid(out["prediction"])
 
             batch_jac = []
             batch_f1 = []
             batch_recall = []
             batch_precision = []
 
-            y_pred = torch.sigmoid(y_pred)
-
             for yt, yp in zip(y, y_pred):
                 score = calculate_metrics(yt, yp)
+
                 batch_jac.append(score[0])
                 batch_f1.append(score[1])
                 batch_recall.append(score[2])
@@ -280,23 +361,30 @@ def evaluate(model, loader, device):
             epoch_precision += np.mean(batch_precision)
 
     n_batches = len(loader)
-    epoch_loss /= n_batches
-    epoch_jac /= n_batches
-    epoch_f1 /= n_batches
-    epoch_recall /= n_batches
-    epoch_precision /= n_batches
 
-    loss_parts = {key: value / n_batches for key, value in loss_sums.items()}
+    metrics = [
+        epoch_jac / n_batches,
+        epoch_f1 / n_batches,
+        epoch_recall / n_batches,
+        epoch_precision / n_batches
+    ]
 
-    return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision], loss_parts
+    loss_parts = {}
+
+    for key in loss_accumulator.keys():
+        loss_parts[key] = loss_accumulator[key] / n_batches
+
+    return epoch_loss / n_batches, metrics, loss_parts
 
 
 def run_experiment(path):
     model_name = "FocusNet"
+
     current_modality = infer_modality_from_path(path)
 
     experiment_name = (
-        f"FocusNet_DGFR_BandHead_RegionAdaptiveHybridSupervision_EMA_"
+        f"FocusNet_DGFR_BandHead_"
+        f"DynamicSpectralUncertaintyExpertRouting_EMA_"
         f"modality_{current_modality}"
     )
 
@@ -317,6 +405,7 @@ def run_experiment(path):
 
     image_size = 256
     size = (image_size, image_size)
+
     batch_size = 16
     num_epochs = 500
     lr = 1e-4
@@ -345,9 +434,11 @@ def run_experiment(path):
             "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "ema_decay": EMA_DECAY,
-            "train_path": path,
-            "loss": "Region-adaptive DiceBCE + Band + UGEL + GrayWavelet + SafeBG + FT + EMA",
+            "ema_consistency_weight": EMA_CONSISTENCY_WEIGHT,
+            "ema_confidence_threshold": EMA_CONFIDENCE_THRESHOLD,
+            "loss": "Dynamic UGEL + Spectral Boundary + Region Calibration Router + EMA",
             "augmentation": "Spatial Aug only",
+            "checkpoint_model": "EMA teacher"
         }
     )
 
@@ -362,19 +453,30 @@ def run_experiment(path):
     data_str += f"Epochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
     data_str += f"EMA Decay: {EMA_DECAY}\n"
+    data_str += f"EMA Consistency Weight: {EMA_CONSISTENCY_WEIGHT}\n"
+    data_str += f"EMA Confidence Threshold: {EMA_CONFIDENCE_THRESHOLD}\n"
     data_str += f"Path: {path}\n"
     data_str += f"Checkpoint: {checkpoint_path}\n"
+
     print_and_save(train_log_path, data_str)
 
-    train_samples, valid_samples, _ = load_polypdb_modality_data(path)
+    train_samples, valid_samples, test_samples = load_polypdb_modality_data(path)
     train_samples = shuffle(train_samples, random_state=42)
 
     data_str = f"Dataset Size:\n"
-    data_str += f"Train: {len(train_samples)} - Valid: {len(valid_samples)}\n"
+    data_str += (
+        f"Train: {len(train_samples)} - "
+        f"Valid: {len(valid_samples)} - "
+        f"Test: {len(test_samples)}\n"
+    )
+
     print_and_save(train_log_path, data_str)
 
     if len(train_samples) == 0 or len(valid_samples) == 0:
-        print_and_save(train_log_path, f"Skipping {current_modality}: empty train or validation split.\n")
+        print_and_save(
+            train_log_path,
+            f"Skipping {current_modality}: empty train or validation split.\n"
+        )
         wandb.finish()
         return
 
@@ -382,34 +484,75 @@ def run_experiment(path):
         A.Rotate(limit=35, p=0.30),
         A.HorizontalFlip(p=0.30),
         A.VerticalFlip(p=0.30),
-        A.CoarseDropout(max_holes=8, max_height=24, max_width=24, p=0.20),
+        A.CoarseDropout(
+            max_holes=8,
+            max_height=24,
+            max_width=24,
+            p=0.20
+        )
     ])
 
-    train_dataset = PolypDB_DATASET(train_samples, size=size, transform=transform)
-    valid_dataset = PolypDB_DATASET(valid_samples, size=size, transform=None)
+    train_dataset = PolypDB_DATASET(
+        samples_path=train_samples,
+        size=size,
+        transform=transform
+    )
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    valid_dataset = PolypDB_DATASET(
+        samples_path=valid_samples,
+        size=size,
+        transform=None
+    )
+
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=True
+    )
+
+    valid_loader = DataLoader(
+        dataset=valid_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=True
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = FocusNet().to(device)
     ema_model = copy.deepcopy(model).to(device)
-    set_requires_grad(ema_model, False)
     ema_model.eval()
+
+    for param in ema_model.parameters():
+        param.requires_grad = False
 
     print(f"train model: {model_name}")
     print(f"experiment: {experiment_name}")
     print(f"path: {path}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, verbose=True)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=lr,
+        weight_decay=weight_decay
+    )
 
-    data_str = "Optimizer: AdamW\n"
-    data_str += "Scheduler: ReduceLROnPlateau\n"
-    data_str += "Loss: Region-adaptive DiceBCE + Band + UGEL + GrayWavelet + SafeBG + FT + EMA\n"
-    data_str += "Augmentation: Spatial Aug only\n"
-    print_and_save(train_log_path, data_str)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",
+        patience=5,
+        verbose=True
+    )
+
+    print_and_save(
+        train_log_path,
+        "Optimizer: AdamW\n"
+        "Scheduler: ReduceLROnPlateau\n"
+        "Loss: Dynamic Expert Routing + EMA Consistency\n"
+        "Saved checkpoint: EMA model\n"
+    )
 
     best_valid_f1 = 0.0
     early_stopping_count = 0
@@ -417,18 +560,33 @@ def run_experiment(path):
     for epoch in range(num_epochs):
         start_time = time.time()
 
-        train_loss, train_metrics, train_loss_parts = train(model, ema_model, train_loader, optimizer, device)
-        valid_loss, valid_metrics, valid_loss_parts = evaluate(ema_model, valid_loader, device)
+        train_loss, train_metrics, train_parts = train(
+            model=model,
+            ema_model=ema_model,
+            loader=train_loader,
+            optimizer=optimizer,
+            device=device
+        )
+
+        valid_loss, valid_metrics, valid_parts = evaluate(
+            model=ema_model,
+            loader=valid_loader,
+            device=device
+        )
 
         scheduler.step(valid_loss)
+
         current_lr = optimizer.param_groups[0]["lr"]
 
         if valid_metrics[1] > best_valid_f1:
             data_str = (
-                f"Valid EMA F1 improved from {best_valid_f1:2.4f} "
-                f"to {valid_metrics[1]:2.4f}. Saving checkpoint: {checkpoint_path}"
+                f"Valid F1 improved from {best_valid_f1:2.4f} "
+                f"to {valid_metrics[1]:2.4f}. "
+                f"Saving EMA checkpoint: {checkpoint_path}"
             )
+
             print_and_save(train_log_path, data_str)
+
             best_valid_f1 = valid_metrics[1]
             torch.save(ema_model.state_dict(), checkpoint_path)
             early_stopping_count = 0
@@ -438,25 +596,53 @@ def run_experiment(path):
         wandb.log({
             "epoch": epoch + 1,
             "lr": current_lr,
+
             "train/loss": train_loss,
             "train/jaccard": train_metrics[0],
             "train/f1": train_metrics[1],
             "train/recall": train_metrics[2],
             "train/precision": train_metrics[3],
+
             "valid/loss": valid_loss,
             "valid/jaccard": valid_metrics[0],
             "valid/f1": valid_metrics[1],
             "valid/recall": valid_metrics[2],
             "valid/precision": valid_metrics[3],
-            "best_valid_f1": best_valid_f1,
-            **{f"train/{k}": v for k, v in train_loss_parts.items()},
-            **{f"valid/{k}": v for k, v in valid_loss_parts.items()},
+
+            "train/model_loss": train_parts["model_loss"],
+            "train/ema_consistency": train_parts["ema_consistency"],
+            "train/loss_final": train_parts["loss_final"],
+            "train/loss_band": train_parts["loss_band"],
+            "train/loss_dynamic_expert": train_parts["loss_dynamic_expert"],
+            "train/loss_ugel": train_parts["loss_ugel"],
+            "train/loss_spectral": train_parts["loss_spectral"],
+            "train/loss_region": train_parts["loss_region"],
+            "train/loss_consistency": train_parts["loss_consistency"],
+            "train/router_entropy": train_parts["loss_router_entropy"],
+            "train/router_ugel_weight": train_parts["router_ugel_weight"],
+            "train/router_spectral_weight": train_parts["router_spectral_weight"],
+            "train/router_region_weight": train_parts["router_region_weight"],
+
+            "valid/loss_final": valid_parts["loss_final"],
+            "valid/loss_band": valid_parts["loss_band"],
+            "valid/loss_dynamic_expert": valid_parts["loss_dynamic_expert"],
+            "valid/loss_ugel": valid_parts["loss_ugel"],
+            "valid/loss_spectral": valid_parts["loss_spectral"],
+            "valid/loss_region": valid_parts["loss_region"],
+            "valid/loss_consistency": valid_parts["loss_consistency"],
+            "valid/router_entropy": valid_parts["loss_router_entropy"],
+            "valid/router_ugel_weight": valid_parts["router_ugel_weight"],
+            "valid/router_spectral_weight": valid_parts["router_spectral_weight"],
+            "valid/router_region_weight": valid_parts["router_region_weight"],
+
+            "best_valid_f1": best_valid_f1
         })
 
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
         data_str = f"Epoch: {epoch + 1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n"
+
         data_str += (
             f"\tTrain Loss: {train_loss:.4f} "
             f"- Jaccard: {train_metrics[0]:.4f} "
@@ -464,6 +650,7 @@ def run_experiment(path):
             f"- Recall: {train_metrics[2]:.4f} "
             f"- Precision: {train_metrics[3]:.4f}\n"
         )
+
         data_str += (
             f"\t Val. Loss: {valid_loss:.4f} "
             f"- Jaccard: {valid_metrics[0]:.4f} "
@@ -471,26 +658,32 @@ def run_experiment(path):
             f"- Recall: {valid_metrics[2]:.4f} "
             f"- Precision: {valid_metrics[3]:.4f}\n"
         )
+
         data_str += (
-            f"\t Valid Loss Parts "
-            f"- Final: {valid_loss_parts['loss_final']:.4f} "
-            f"- Band: {valid_loss_parts['loss_band']:.4f} "
-            f"- UGEL: {valid_loss_parts['loss_ugel']:.4f} "
-            f"- Wavelet: {valid_loss_parts['loss_wavelet']:.4f} "
-            f"- SafeBG: {valid_loss_parts['loss_safe_background']:.4f} "
-            f"- FT: {valid_loss_parts['loss_focal_tversky']:.4f} "
-            f"- Consistency: {valid_loss_parts['loss_consistency']:.4f} "
-            f"- Teacher: {valid_loss_parts['loss_teacher']:.4f}\n"
+            f"\t Valid Router "
+            f"- UGEL: {valid_parts['router_ugel_weight']:.4f} "
+            f"- Spectral: {valid_parts['router_spectral_weight']:.4f} "
+            f"- Region: {valid_parts['router_region_weight']:.4f}\n"
         )
+
         print_and_save(train_log_path, data_str)
 
         if early_stopping_count == early_stopping_patience:
-            data_str = f"Early stopping: validation F1 stopped improving for {early_stopping_patience} consecutive epochs.\n"
+            data_str = (
+                f"Early stopping: validation F1 stopped improving for "
+                f"{early_stopping_patience} consecutive epochs.\n"
+            )
+
             print_and_save(train_log_path, data_str)
             break
 
     wandb.finish()
-    del model, ema_model, optimizer, scheduler
+
+    del model
+    del ema_model
+    del optimizer
+    del scheduler
+
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
@@ -514,4 +707,5 @@ if __name__ == "__main__":
         print("\n" + "=" * 100)
         print(f"Starting modality-wise experiment for: {path}")
         print("=" * 100 + "\n")
+
         run_experiment(path)

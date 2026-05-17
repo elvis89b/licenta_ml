@@ -50,11 +50,15 @@ class WeightedDiceBCELoss(nn.Module):
             reduction="none"
         )
 
-        bce = (bce * pixel_weight).sum() / (pixel_weight.sum() + 1e-6)
+        bce = (bce * pixel_weight).sum() / (
+            pixel_weight.sum() + 1e-6
+        )
 
         dims = (1, 2, 3)
 
-        intersection = (pixel_weight * probs * targets).sum(dim=dims)
+        intersection = (
+            pixel_weight * probs * targets
+        ).sum(dim=dims)
 
         denominator = (
             (pixel_weight * probs).sum(dim=dims)
@@ -390,16 +394,10 @@ class FocusNet(nn.Module):
 
         self.final_loss_weight = 1.00
         self.band_loss_weight = 0.20
-        self.dynamic_expert_weight = 0.25
+        self.ugel_loss_weight = 0.12
         self.decoder_consistency_weight = 0.05
-        self.router_entropy_weight = 0.005
-
-        self.ugel_expert_scale = 1.00
-        self.spectral_expert_scale = 0.75
-        self.region_expert_scale = 0.75
 
         self.band_kernel_size = 7
-        self.safe_region_kernel_size = 9
 
         self.band_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
@@ -408,37 +406,6 @@ class FocusNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(channel, 1, kernel_size=1)
         )
-
-        self.router_feature_projection = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Flatten(),
-            nn.Linear(channel, 16),
-            nn.ReLU(inplace=True)
-        )
-
-        self.router_mlp = nn.Sequential(
-            nn.Linear(20, 24),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=0.10),
-            nn.Linear(24, 3)
-        )
-
-        sobel_x = torch.tensor(
-            [[[-1.0, 0.0, 1.0],
-              [-2.0, 0.0, 2.0],
-              [-1.0, 0.0, 1.0]]],
-            dtype=torch.float32
-        ).unsqueeze(0)
-
-        sobel_y = torch.tensor(
-            [[[-1.0, -2.0, -1.0],
-              [0.0, 0.0, 0.0],
-              [1.0, 2.0, 1.0]]],
-            dtype=torch.float32
-        ).unsqueeze(0)
-
-        self.register_buffer("sobel_x", sobel_x)
-        self.register_buffer("sobel_y", sobel_y)
 
     def res(self, x, size):
         return F.interpolate(
@@ -469,88 +436,31 @@ class FocusNet(nn.Module):
 
         return torch.clamp(band, 0.0, 1.0)
 
-    def make_safe_regions(self, mask, kernel_size=9):
-        pad = kernel_size // 2
+    def normalize_uncertainty(self, u):
+        u = u.detach()
 
-        dilated = F.max_pool2d(
-            mask,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=pad
+        u_min = u.amin(dim=(2, 3), keepdim=True)
+        u_max = u.amax(dim=(2, 3), keepdim=True)
+
+        u = (u - u_min) / (u_max - u_min + 1e-6)
+
+        return torch.clamp(u, 0.0, 1.0)
+
+    def selective_decoder_agreement_loss(self, logit1, logit2, uncertainty_map):
+        p1 = torch.sigmoid(logit1)
+        p2 = torch.sigmoid(logit2)
+
+        confidence = torch.clamp(
+            1.0 - uncertainty_map,
+            min=0.0,
+            max=1.0
         )
 
-        eroded = -F.max_pool2d(
-            -mask,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=pad
-        )
+        return (
+            torch.abs(p1 - p2) * confidence
+        ).mean()
 
-        safe_foreground = torch.clamp(eroded, 0.0, 1.0)
-        safe_background = torch.clamp(1.0 - dilated, 0.0, 1.0)
-
-        return safe_foreground, safe_background
-
-    def normalize_uncertainty(self, uncertainty):
-        uncertainty = uncertainty.detach()
-
-        u_min = uncertainty.amin(dim=(2, 3), keepdim=True)
-        u_max = uncertainty.amax(dim=(2, 3), keepdim=True)
-
-        uncertainty = (uncertainty - u_min) / (
-            u_max - u_min + 1e-6
-        )
-
-        return torch.clamp(uncertainty, 0.0, 1.0)
-
-    def sobel_edge_map(self, x):
-        grad_x = F.conv2d(
-            x,
-            self.sobel_x,
-            padding=1
-        )
-
-        grad_y = F.conv2d(
-            x,
-            self.sobel_y,
-            padding=1
-        )
-
-        edge = torch.sqrt(
-            grad_x.pow(2) + grad_y.pow(2) + 1e-6
-        )
-
-        return edge
-
-    def weighted_dice_bce_per_sample(self, logits, targets, pixel_weight):
-        probs = torch.sigmoid(logits)
-
-        bce = F.binary_cross_entropy_with_logits(
-            logits,
-            targets,
-            reduction="none"
-        )
-
-        dims = (1, 2, 3)
-
-        bce = (bce * pixel_weight).sum(dim=dims) / (
-            pixel_weight.sum(dim=dims) + 1e-6
-        )
-
-        intersection = (pixel_weight * probs * targets).sum(dim=dims)
-
-        denominator = (
-            (pixel_weight * probs).sum(dim=dims)
-            + (pixel_weight * targets).sum(dim=dims)
-        )
-
-        dice_loss = 1.0 - (2.0 * intersection + 1.0) / (
-            denominator + 1.0
-        )
-
-        return bce + dice_loss
-
-    def uncertainty_gated_edge_loss_per_sample(
+    def uncertainty_gated_edge_loss(
         self,
         prediction_logits,
         target_mask,
@@ -565,283 +475,11 @@ class FocusNet(nn.Module):
 
         edge_weight = 1.0 + edge_focus
 
-        return self.weighted_dice_bce_per_sample(
+        return self.weighted_seg_loss(
             prediction_logits,
             target_mask,
             pixel_weight=edge_weight
         )
-
-    def spectral_boundary_consistency_loss_per_sample(
-        self,
-        prediction_logits,
-        target_mask
-    ):
-        pred_prob = torch.sigmoid(prediction_logits)
-
-        pred_edge = self.sobel_edge_map(pred_prob)
-        target_edge = self.sobel_edge_map(target_mask)
-
-        pred_edge = F.interpolate(
-            pred_edge,
-            size=(64, 64),
-            mode="bilinear",
-            align_corners=False
-        )
-
-        target_edge = F.interpolate(
-            target_edge,
-            size=(64, 64),
-            mode="bilinear",
-            align_corners=False
-        )
-
-        pred_fft = torch.fft.fft2(
-            pred_edge.squeeze(1),
-            norm="ortho"
-        )
-
-        target_fft = torch.fft.fft2(
-            target_edge.squeeze(1),
-            norm="ortho"
-        )
-
-        pred_mag = torch.log1p(torch.abs(pred_fft))
-        target_mag = torch.log1p(torch.abs(target_fft))
-
-        pred_mag = torch.fft.fftshift(pred_mag, dim=(-2, -1))
-        target_mag = torch.fft.fftshift(target_mag, dim=(-2, -1))
-
-        pred_mag = pred_mag / (
-            pred_mag.mean(dim=(-2, -1), keepdim=True) + 1e-6
-        )
-
-        target_mag = target_mag / (
-            target_mag.mean(dim=(-2, -1), keepdim=True) + 1e-6
-        )
-
-        h, w = pred_mag.shape[-2:]
-
-        yy = torch.linspace(
-            -1.0,
-            1.0,
-            h,
-            device=pred_mag.device
-        ).view(h, 1)
-
-        xx = torch.linspace(
-            -1.0,
-            1.0,
-            w,
-            device=pred_mag.device
-        ).view(1, w)
-
-        radius = torch.sqrt(xx.pow(2) + yy.pow(2))
-        radius = radius / (radius.max() + 1e-6)
-
-        frequency_weight = 1.0 + radius
-        frequency_weight = frequency_weight.unsqueeze(0)
-
-        spectral_difference = torch.abs(
-            pred_mag - target_mag
-        ) * frequency_weight
-
-        loss = spectral_difference.mean(dim=(-2, -1))
-
-        return loss
-
-    def region_calibration_loss_per_sample(
-        self,
-        prediction_logits,
-        safe_foreground,
-        safe_background,
-        uncertainty_map
-    ):
-        probs = torch.sigmoid(prediction_logits)
-
-        confidence = torch.clamp(
-            1.0 - uncertainty_map,
-            min=0.0,
-            max=1.0
-        )
-
-        bg_weight = safe_background * confidence
-        fg_weight = safe_foreground * confidence
-
-        false_positive_penalty = -torch.log(
-            1.0 - probs + 1e-6
-        )
-
-        false_negative_penalty = -torch.log(
-            probs + 1e-6
-        )
-
-        dims = (1, 2, 3)
-
-        background_loss = (
-            false_positive_penalty * bg_weight
-        ).sum(dim=dims) / (
-            bg_weight.sum(dim=dims) + 1e-6
-        )
-
-        foreground_loss = (
-            false_negative_penalty * fg_weight
-        ).sum(dim=dims) / (
-            fg_weight.sum(dim=dims) + 1e-6
-        )
-
-        region_loss = (
-            0.65 * background_loss
-            + 0.35 * foreground_loss
-        )
-
-        return region_loss
-
-    def selective_decoder_agreement_loss(
-        self,
-        logit1,
-        logit2,
-        uncertainty_map
-    ):
-        p1 = torch.sigmoid(logit1)
-        p2 = torch.sigmoid(logit2)
-
-        confidence = torch.clamp(
-            1.0 - uncertainty_map,
-            min=0.0,
-            max=1.0
-        )
-
-        return (
-            torch.abs(p1 - p2) * confidence
-        ).mean()
-
-    def compute_high_low_frequency_score(self, images):
-        gray = images.mean(dim=1, keepdim=True)
-
-        gray_small = F.interpolate(
-            gray,
-            size=(64, 64),
-            mode="bilinear",
-            align_corners=False
-        )
-
-        fft = torch.fft.fft2(
-            gray_small.squeeze(1),
-            norm="ortho"
-        )
-
-        amplitude = torch.abs(fft)
-        amplitude = torch.fft.fftshift(
-            amplitude,
-            dim=(-2, -1)
-        )
-
-        h, w = amplitude.shape[-2:]
-        center_h = h // 2
-        center_w = w // 2
-        radius = 8
-
-        low_region = amplitude[
-            :,
-            center_h - radius:center_h + radius,
-            center_w - radius:center_w + radius
-        ]
-
-        low_energy = low_region.sum(dim=(-2, -1))
-        total_energy = amplitude.sum(dim=(-2, -1))
-        high_energy = torch.clamp(
-            total_energy - low_energy,
-            min=0.0
-        )
-
-        ratio = torch.log1p(
-            high_energy / (low_energy + 1e-6)
-        )
-
-        score = torch.tanh(ratio)
-
-        return score
-
-    def build_router_weights(
-        self,
-        decoder_feature,
-        images,
-        prediction_logits,
-        uncertainty_full
-    ):
-        pooled_feature = self.router_feature_projection(
-            decoder_feature
-        )
-
-        gray = images.mean(dim=1, keepdim=True)
-        gray_edge = self.sobel_edge_map(gray)
-
-        edge_energy = gray_edge.mean(dim=(1, 2, 3))
-        edge_score = torch.tanh(edge_energy * 3.0)
-
-        uncertainty_score = torch.clamp(
-            uncertainty_full.detach().mean(dim=(1, 2, 3)) * 2.0,
-            min=0.0,
-            max=1.0
-        )
-
-        frequency_score = self.compute_high_low_frequency_score(
-            images
-        ).detach()
-
-        area_ratio = torch.sigmoid(
-            prediction_logits.detach()
-        ).mean(dim=(1, 2, 3))
-
-        handcrafted_stats = torch.stack(
-            [
-                uncertainty_score,
-                edge_score.detach(),
-                frequency_score,
-                area_ratio
-            ],
-            dim=1
-        )
-
-        router_input = torch.cat(
-            [pooled_feature, handcrafted_stats],
-            dim=1
-        )
-
-        learned_logits = self.router_mlp(router_input)
-
-        ugel_prior = (
-            1.50 * uncertainty_score
-            + 0.50 * edge_score.detach()
-        )
-
-        spectral_prior = (
-            1.00 * frequency_score
-            + 0.75 * edge_score.detach()
-        )
-
-        region_prior = (
-            1.25 * (1.0 - uncertainty_score)
-            + 0.75 * (1.0 - edge_score.detach())
-        )
-
-        prior_logits = torch.stack(
-            [
-                ugel_prior,
-                spectral_prior,
-                region_prior
-            ],
-            dim=1
-        )
-
-        router_logits = prior_logits + 0.35 * learned_logits
-
-        router_weights = F.softmax(
-            router_logits,
-            dim=1
-        )
-
-        return router_weights
 
     def forward(self, sample):
         x = sample["images"]
@@ -860,20 +498,10 @@ class FocusNet(nn.Module):
         x3_pvt = self.Translayer_pvt3(x3_pvt)
         x4_pvt = self.Translayer_pvt4(x4_pvt)
 
-        f1, a1 = self.decoder1(
-            x4_pvt,
-            x3_pvt,
-            x2_pvt
-        )
-
+        f1, a1 = self.decoder1(x4_pvt, x3_pvt, x2_pvt)
         out1 = self.res(a1, base_size)
 
-        f2, a2 = self.decoder2(
-            x4_pvt,
-            x3_pvt,
-            x2_pvt
-        )
-
+        f2, a2 = self.decoder2(x4_pvt, x3_pvt, x2_pvt)
         out2 = self.res(a2, base_size)
 
         x_t = self.context(x1_pvt)
@@ -902,39 +530,23 @@ class FocusNet(nn.Module):
 
         out = out1 + out2 + out3 + out4
 
-        band_feature = torch.cat([f3, f4], dim=1)
-        band_prediction = self.band_head(band_feature)
-        band_prediction_up = self.res(
-            band_prediction,
-            base_size
-        )
+        band_feat = torch.cat([f3, f4], dim=1)
+        band_pred = self.band_head(band_feat)
+        band_pred_up = self.res(band_pred, base_size)
 
-        decoder_feature = 0.5 * (f3 + f4)
-
-        uncertainty_full = self.res(
-            coarse_uncertainty,
-            base_size
-        )
-
-        uncertainty_full = self.normalize_uncertainty(
-            uncertainty_full
-        )
+        uncertainty_full = self.res(coarse_uncertainty, base_size)
+        uncertainty_full = self.normalize_uncertainty(uncertainty_full)
 
         band_target = self.make_band_target(
             y,
             kernel_size=self.band_kernel_size
         )
 
-        safe_foreground, safe_background = self.make_safe_regions(
-            y,
-            kernel_size=self.safe_region_kernel_size
-        )
-
         final_pixel_weight = (
             1.0
-            + 0.70 * band_target
-            + 0.45 * uncertainty_full
-            + 0.70 * band_target * uncertainty_full
+            + 0.60 * band_target
+            + 0.35 * uncertainty_full
+            + 0.60 * band_target * uncertainty_full
         )
 
         loss1 = self.seg_loss(out1, y)
@@ -956,44 +568,17 @@ class FocusNet(nn.Module):
         )
 
         loss_band = self.weighted_seg_loss(
-            band_prediction_up,
+            band_pred_up,
             band_target,
             pixel_weight=1.0 + band_target + uncertainty_full
         )
 
-        loss_ugel_vector = self.uncertainty_gated_edge_loss_per_sample(
+        loss_ugel = self.uncertainty_gated_edge_loss(
             prediction_logits=out,
             target_mask=y,
             band_target=band_target,
             uncertainty_map=uncertainty_full
         )
-
-        loss_spectral_vector = self.spectral_boundary_consistency_loss_per_sample(
-            prediction_logits=out,
-            target_mask=y
-        )
-
-        loss_region_vector = self.region_calibration_loss_per_sample(
-            prediction_logits=out,
-            safe_foreground=safe_foreground,
-            safe_background=safe_background,
-            uncertainty_map=uncertainty_full
-        )
-
-        router_weights = self.build_router_weights(
-            decoder_feature=decoder_feature,
-            images=x,
-            prediction_logits=out,
-            uncertainty_full=uncertainty_full
-        )
-
-        routed_expert_vector = (
-            router_weights[:, 0] * self.ugel_expert_scale * loss_ugel_vector
-            + router_weights[:, 1] * self.spectral_expert_scale * loss_spectral_vector
-            + router_weights[:, 2] * self.region_expert_scale * loss_region_vector
-        )
-
-        loss_dynamic_expert = routed_expert_vector.mean()
 
         loss_consistency = self.selective_decoder_agreement_loss(
             out1,
@@ -1001,17 +586,12 @@ class FocusNet(nn.Module):
             uncertainty_full
         )
 
-        router_entropy_loss = (
-            router_weights * torch.log(router_weights + 1e-6)
-        ).sum(dim=1).mean()
-
         loss = (
             loss_aux
             + self.final_loss_weight * loss_final
             + self.band_loss_weight * loss_band
-            + self.dynamic_expert_weight * loss_dynamic_expert
+            + self.ugel_loss_weight * loss_ugel
             + self.decoder_consistency_weight * loss_consistency
-            + self.router_entropy_weight * router_entropy_loss
         )
 
         return {
@@ -1020,13 +600,6 @@ class FocusNet(nn.Module):
             "loss_aux": loss_aux.detach(),
             "loss_final": loss_final.detach(),
             "loss_band": loss_band.detach(),
-            "loss_dynamic_expert": loss_dynamic_expert.detach(),
-            "loss_ugel": loss_ugel_vector.mean().detach(),
-            "loss_spectral": loss_spectral_vector.mean().detach(),
-            "loss_region": loss_region_vector.mean().detach(),
-            "loss_consistency": loss_consistency.detach(),
-            "loss_router_entropy": router_entropy_loss.detach(),
-            "router_ugel_weight": router_weights[:, 0].mean().detach(),
-            "router_spectral_weight": router_weights[:, 1].mean().detach(),
-            "router_region_weight": router_weights[:, 2].mean().detach()
+            "loss_ugel": loss_ugel.detach(),
+            "loss_consistency": loss_consistency.detach()
         }

@@ -16,7 +16,7 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-VARIANT_SLUG = "dynamic_spectral_uncertainty_expert_routing_ema"
+VARIANT_SLUG = "cross_expert_consensus_distillation_ema"
 
 THRESHOLD_CANDIDATES = [
     0.25,
@@ -31,7 +31,8 @@ THRESHOLD_CANDIDATES = [
     0.70,
     0.75,
     0.80,
-    0.85
+    0.85,
+    0.90
 ]
 
 
@@ -58,17 +59,13 @@ def load_polypdb_center_data(path):
 
         samples.append((image_path, mask_path))
 
-    center_len = len(samples)
-    center_train_len = int(0.8 * center_len)
-    center_val_len = int(0.1 * center_len)
+    total_len = len(samples)
+    train_len = int(0.8 * total_len)
+    val_len = int(0.1 * total_len)
 
-    train_samples = samples[:center_train_len]
-    valid_samples = samples[
-        center_train_len:center_train_len + center_val_len
-    ]
-    test_samples = samples[
-        center_train_len + center_val_len:
-    ]
+    train_samples = samples[:train_len]
+    valid_samples = samples[train_len:train_len + val_len]
+    test_samples = samples[train_len + val_len:]
 
     return train_samples, valid_samples, test_samples
 
@@ -76,15 +73,23 @@ def load_polypdb_center_data(path):
 def prepare_sample(image_path, mask_path, size, device):
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
 
+    if image is None:
+        raise ValueError(f"Could not read image: {image_path}")
+
     image = cv2.resize(image, size, interpolation=cv2.INTER_LINEAR)
     save_img = image.copy()
 
     image = np.transpose(image, (2, 0, 1))
     image = image.astype(np.float32) / 255.0
     image = np.expand_dims(image, axis=0)
+
     image = torch.from_numpy(image).to(device, dtype=torch.float32)
 
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+
+    if mask is None:
+        raise ValueError(f"Could not read mask: {mask_path}")
+
     mask = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
 
     save_mask = np.expand_dims(mask, axis=-1)
@@ -94,6 +99,7 @@ def prepare_sample(image_path, mask_path, size, device):
     mask = mask.astype(np.float32) / 255.0
     mask = (mask > 0.5).astype(np.float32)
     mask = np.expand_dims(mask, axis=0)
+
     mask = torch.from_numpy(mask).to(device, dtype=torch.float32)
 
     return image, mask, save_img, save_mask
@@ -106,7 +112,9 @@ def get_prediction(model, image, mask):
     }
 
     out = model(sample)
-    return torch.sigmoid(out["prediction"])
+    y_pred = torch.sigmoid(out["prediction"])
+
+    return y_pred
 
 
 def calculate_metrics_with_threshold(mask, y_pred_prob, threshold):
@@ -116,6 +124,7 @@ def calculate_metrics_with_threshold(mask, y_pred_prob, threshold):
 
 def calibrate_threshold(model, device, valid_samples, size):
     if len(valid_samples) == 0:
+        print("Validation split is empty. Using default threshold 0.50.")
         return 0.50
 
     threshold_scores = {}
@@ -126,20 +135,28 @@ def calibrate_threshold(model, device, valid_samples, size):
         for threshold in THRESHOLD_CANDIDATES:
             metrics_score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-            for image_path, mask_path in valid_samples:
+            for image_path, mask_path in tqdm(
+                valid_samples,
+                total=len(valid_samples),
+                desc=f"Calibrating threshold {threshold:.2f}"
+            ):
                 image, mask, _, _ = prepare_sample(
-                    image_path,
-                    mask_path,
-                    size,
-                    device
+                    image_path=image_path,
+                    mask_path=mask_path,
+                    size=size,
+                    device=device
                 )
 
-                y_pred = get_prediction(model, image, mask)
+                y_pred = get_prediction(
+                    model=model,
+                    image=image,
+                    mask=mask
+                )
 
                 score = calculate_metrics_with_threshold(
-                    mask,
-                    y_pred,
-                    threshold
+                    mask=mask,
+                    y_pred_prob=y_pred,
+                    threshold=threshold
                 )
 
                 metrics_score = list(map(add, metrics_score, score))
@@ -154,6 +171,13 @@ def calibrate_threshold(model, device, valid_samples, size):
                 "f2": f2
             }
 
+            print(
+                f"Threshold {threshold:.2f} | "
+                f"Jaccard: {jaccard:.4f} - "
+                f"F1: {f1:.4f} - "
+                f"F2: {f2:.4f}"
+            )
+
     best_threshold = max(
         threshold_scores.keys(),
         key=lambda t: (
@@ -162,6 +186,8 @@ def calibrate_threshold(model, device, valid_samples, size):
             threshold_scores[t]["f2"]
         )
     )
+
+    print(f"Selected threshold: {best_threshold:.2f}")
 
     return best_threshold
 
@@ -174,22 +200,28 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
         name = y.split("/")[-1].split(".")[0]
 
         image, mask, save_img, save_mask = prepare_sample(
-            x,
-            y,
-            size,
-            device
+            image_path=x,
+            mask_path=y,
+            size=size,
+            device=device
         )
 
         with torch.no_grad():
             start_time = time.time()
-            y_pred_prob = get_prediction(model, image, mask)
+
+            y_pred_prob = get_prediction(
+                model=model,
+                image=image,
+                mask=mask
+            )
+
             end_time = time.time() - start_time
             time_taken.append(end_time)
 
             score = calculate_metrics_with_threshold(
-                mask,
-                y_pred_prob,
-                threshold
+                mask=mask,
+                y_pred_prob=y_pred_prob,
+                threshold=threshold
             )
 
             metrics_score = list(map(add, metrics_score, score))
@@ -197,7 +229,8 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
             y_pred = y_pred_prob[0].cpu().numpy()
             y_pred = np.squeeze(y_pred, axis=0)
             y_pred = y_pred > threshold
-            y_pred = y_pred.astype(np.int32) * 255
+            y_pred = y_pred.astype(np.int32)
+            y_pred = y_pred * 255
             y_pred = np.array(y_pred, dtype=np.uint8)
             y_pred = np.expand_dims(y_pred, axis=-1)
             y_pred = np.concatenate([y_pred, y_pred, y_pred], axis=2)
@@ -205,7 +238,13 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
         line = np.ones((size[0], 10, 3), dtype=np.uint8) * 255
 
         cat_images = np.concatenate(
-            [save_img, line, save_mask, line, y_pred],
+            [
+                save_img,
+                line,
+                save_mask,
+                line,
+                y_pred
+            ],
             axis=1
         )
 
@@ -219,17 +258,30 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
     acc = metrics_score[4] / len(test_samples)
     f2 = metrics_score[5] / len(test_samples)
 
-    mean_fps = 1 / np.mean(time_taken)
+    mean_time_taken = np.mean(time_taken)
+    mean_fps = 1 / mean_time_taken
+
+    print(
+        f"Threshold: {threshold:.2f} - "
+        f"Jaccard: {jaccard:1.4f} "
+        f"- F1: {f1:1.4f} "
+        f"- Recall: {recall:1.4f} "
+        f"- Precision: {precision:1.4f} "
+        f"- Acc: {acc:1.4f} "
+        f"- F2: {f2:1.4f}"
+    )
+
+    print("Mean FPS: ", mean_fps)
 
     return {
-        "threshold": threshold,
         "jaccard": jaccard,
         "f1": f1,
         "recall": recall,
         "precision": precision,
         "accuracy": acc,
         "f2": f2,
-        "fps": mean_fps
+        "fps": mean_fps,
+        "threshold": threshold
     }
 
 
@@ -239,6 +291,7 @@ if __name__ == "__main__":
     model_name = "FocusNet"
     modality = "WLI"
     size = (256, 256)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     test_center_list = [
@@ -250,25 +303,33 @@ if __name__ == "__main__":
     summary_results = {}
 
     for test_center in test_center_list:
+        print("\n" + "=" * 100)
+        print(f"Testing center: {test_center}")
+        print("=" * 100 + "\n")
+
         checkpoint_path = (
             f"files/center_wise/{model_name}/"
             f"checkpoint_{test_center}_{modality}_{VARIANT_SLUG}.pth"
         )
+
+        if not os.path.exists(checkpoint_path):
+            print(f"Skipping {test_center}: checkpoint not found: {checkpoint_path}")
+            continue
 
         test_path = (
             f"data/PolypDB/PolypDB_center_wise/"
             f"{test_center}/{modality}"
         )
 
-        if not os.path.exists(checkpoint_path):
-            print(f"Skipping {test_center}: checkpoint not found.")
-            continue
-
         if not os.path.exists(test_path):
-            print(f"Skipping {test_center}: test path not found.")
+            print(f"Skipping {test_center}: test path not found: {test_path}")
             continue
 
         _, valid_samples, test_samples = load_polypdb_center_data(test_path)
+
+        print(f"Checkpoint: {checkpoint_path}")
+        print(f"Validation size: {len(valid_samples)}")
+        print(f"Test size: {len(test_samples)}")
 
         save_path = (
             f"files/center_wise/{model_name}/"
@@ -280,7 +341,10 @@ if __name__ == "__main__":
         create_dir(f"{save_path}/joint")
 
         model = FocusNet().to(device)
-        model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+        model.load_state_dict(
+            torch.load(checkpoint_path, map_location=device),
+            strict=False
+        )
         model.eval()
 
         threshold = calibrate_threshold(

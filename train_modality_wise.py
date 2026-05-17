@@ -18,12 +18,93 @@ from model.FocusNet import FocusNet
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
 
 
-VARIANT_SLUG = "dynamic_spectral_uncertainty_expert_routing_ema"
-VARIANT_NAME = "DGFR+BandHead+DynamicSpectralUncertaintyExpertRouting+EMA"
+VARIANT_SLUG = "cross_expert_consensus_distillation_ema"
+VARIANT_NAME = "DGFR+BandHead+CrossExpertConsensusDistillation+EMA"
 
 EMA_DECAY = 0.995
-EMA_CONSISTENCY_WEIGHT = 0.05
+EMA_CONSISTENCY_WEIGHT = 0.03
 EMA_CONFIDENCE_THRESHOLD = 0.70
+
+DISTILL_RAMP_EPOCHS = 30
+
+
+TEACHER_FILE_RULES = {
+    "UGEL": {
+        "aliases": [
+            "uncertainty_gated_edge_loss"
+        ],
+        "keyword_groups": [
+            ["uncertainty", "gated", "edge", "loss"],
+            ["ugel"]
+        ]
+    },
+    "RAHS": {
+        "aliases": [
+            "region_adaptive_hybrid_supervision_ema"
+        ],
+        "keyword_groups": [
+            ["region", "adaptive", "hybrid", "supervision", "ema"]
+        ]
+    },
+    "WAVELET_EMA": {
+        "aliases": [
+            "wavelet_adaptive_ugel_ema"
+        ],
+        "keyword_groups": [
+            ["wavelet", "adaptive", "ugel", "ema"]
+        ]
+    }
+}
+
+
+MODALITY_CONFIG = {
+    "WLI": {
+        "initial_teacher": "RAHS",
+        "teachers": [
+            ("RAHS", 0.70),
+            ("WAVELET_EMA", 0.20),
+            ("UGEL", 0.10)
+        ],
+        "soft_kd_weight": 0.18,
+        "boundary_kd_weight": 0.08
+    },
+    "BLI": {
+        "initial_teacher": "UGEL",
+        "teachers": [
+            ("UGEL", 0.85),
+            ("RAHS", 0.15)
+        ],
+        "soft_kd_weight": 0.25,
+        "boundary_kd_weight": 0.12
+    },
+    "FICE": {
+        "initial_teacher": "RAHS",
+        "teachers": [
+            ("RAHS", 0.70),
+            ("UGEL", 0.30)
+        ],
+        "soft_kd_weight": 0.22,
+        "boundary_kd_weight": 0.10
+    },
+    "LCI": {
+        "initial_teacher": "WAVELET_EMA",
+        "teachers": [
+            ("WAVELET_EMA", 0.70),
+            ("UGEL", 0.30)
+        ],
+        "soft_kd_weight": 0.25,
+        "boundary_kd_weight": 0.12
+    },
+    "NBI": {
+        "initial_teacher": "UGEL",
+        "teachers": [
+            ("UGEL", 0.80),
+            ("WAVELET_EMA", 0.20)
+        ],
+        "soft_kd_weight": 0.25,
+        "boundary_kd_weight": 0.12
+    }
+}
 
 
 def infer_modality_from_path(path):
@@ -66,17 +147,13 @@ def load_polypdb_modality_data(path):
 
         samples.append((image_path, mask_path))
 
-    modality_len = len(samples)
-    modality_train_len = int(0.8 * modality_len)
-    modality_val_len = int(0.1 * modality_len)
+    total_len = len(samples)
+    train_len = int(0.8 * total_len)
+    val_len = int(0.1 * total_len)
 
-    train_samples = samples[:modality_train_len]
-    valid_samples = samples[
-        modality_train_len:modality_train_len + modality_val_len
-    ]
-    test_samples = samples[
-        modality_train_len + modality_val_len:
-    ]
+    train_samples = samples[:train_len]
+    valid_samples = samples[train_len:train_len + val_len]
+    test_samples = samples[train_len + val_len:]
 
     return train_samples, valid_samples, test_samples
 
@@ -135,6 +212,304 @@ class PolypDB_DATASET(Dataset):
         return self.n_samples
 
 
+def clean_state_dict(raw_state_dict):
+    cleaned = {}
+
+    for key, value in raw_state_dict.items():
+        new_key = key
+
+        if new_key.startswith("module."):
+            new_key = new_key[len("module."):]
+
+        cleaned[new_key] = value
+
+    return cleaned
+
+
+def load_compatible_checkpoint(model, checkpoint_path, device):
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        checkpoint = checkpoint["state_dict"]
+
+    checkpoint = clean_state_dict(checkpoint)
+
+    model_state = model.state_dict()
+
+    compatible_state = {
+        key: value
+        for key, value in checkpoint.items()
+        if key in model_state
+        and model_state[key].shape == value.shape
+    }
+
+    model.load_state_dict(compatible_state, strict=False)
+
+    print(
+        f"Loaded compatible checkpoint: {checkpoint_path} | "
+        f"Matched tensors: {len(compatible_state)}/{len(model_state)}"
+    )
+
+
+def resolve_teacher_checkpoint(directory, prefix, teacher_key):
+    rule = TEACHER_FILE_RULES[teacher_key]
+
+    for alias in rule["aliases"]:
+        exact_path = os.path.join(
+            directory,
+            f"checkpoint_{prefix}_{alias}.pth"
+        )
+
+        if os.path.exists(exact_path):
+            return exact_path
+
+    candidate_files = sorted(
+        glob(os.path.join(directory, f"checkpoint_{prefix}_*.pth"))
+    )
+
+    for candidate in candidate_files:
+        basename = os.path.basename(candidate).lower()
+
+        for keyword_group in rule["keyword_groups"]:
+            if all(keyword in basename for keyword in keyword_group):
+                return candidate
+
+    return None
+
+
+def load_teacher_models(
+    device,
+    teacher_directory,
+    prefix,
+    teacher_specs
+):
+    teacher_models = []
+    teacher_weights = []
+    teacher_names = []
+
+    for teacher_key, teacher_weight in teacher_specs:
+        checkpoint_path = resolve_teacher_checkpoint(
+            directory=teacher_directory,
+            prefix=prefix,
+            teacher_key=teacher_key
+        )
+
+        if checkpoint_path is None:
+            print(
+                f"Teacher checkpoint not found for {teacher_key} "
+                f"with prefix {prefix}. Skipping."
+            )
+            continue
+
+        teacher_model = FocusNet().to(device)
+        load_compatible_checkpoint(
+            teacher_model,
+            checkpoint_path,
+            device
+        )
+
+        teacher_model.eval()
+
+        for param in teacher_model.parameters():
+            param.requires_grad = False
+
+        teacher_models.append(teacher_model)
+        teacher_weights.append(teacher_weight)
+        teacher_names.append(teacher_key)
+
+    if len(teacher_models) == 0:
+        raise RuntimeError(
+            f"No teacher checkpoints found for prefix: {prefix}"
+        )
+
+    teacher_weights = np.array(teacher_weights, dtype=np.float32)
+    teacher_weights = teacher_weights / teacher_weights.sum()
+    teacher_weights = teacher_weights.tolist()
+
+    print("Teachers loaded:")
+    for name, weight in zip(teacher_names, teacher_weights):
+        print(f" - {name}: normalized weight {weight:.4f}")
+
+    return teacher_models, teacher_weights, teacher_names
+
+
+def initialize_student_from_teacher(
+    student_model,
+    ema_model,
+    device,
+    teacher_directory,
+    prefix,
+    teacher_key
+):
+    checkpoint_path = resolve_teacher_checkpoint(
+        directory=teacher_directory,
+        prefix=prefix,
+        teacher_key=teacher_key
+    )
+
+    if checkpoint_path is None:
+        print(
+            f"Initial teacher checkpoint not found for {teacher_key}. "
+            f"Student will start from pretrained FocusNet backbone."
+        )
+        return
+
+    print(
+        f"Initializing student and EMA student from teacher: "
+        f"{teacher_key}"
+    )
+
+    load_compatible_checkpoint(
+        student_model,
+        checkpoint_path,
+        device
+    )
+
+    load_compatible_checkpoint(
+        ema_model,
+        checkpoint_path,
+        device
+    )
+
+
+def sobel_edge_map(x):
+    device = x.device
+
+    sobel_x = torch.tensor(
+        [[[-1.0, 0.0, 1.0],
+          [-2.0, 0.0, 2.0],
+          [-1.0, 0.0, 1.0]]],
+        dtype=torch.float32,
+        device=device
+    ).unsqueeze(0)
+
+    sobel_y = torch.tensor(
+        [[[-1.0, -2.0, -1.0],
+          [0.0, 0.0, 0.0],
+          [1.0, 2.0, 1.0]]],
+        dtype=torch.float32,
+        device=device
+    ).unsqueeze(0)
+
+    grad_x = F.conv2d(x, sobel_x, padding=1)
+    grad_y = F.conv2d(x, sobel_y, padding=1)
+
+    edge = torch.sqrt(
+        grad_x.pow(2) + grad_y.pow(2) + 1e-6
+    )
+
+    return edge
+
+
+def build_teacher_consensus(
+    teacher_models,
+    teacher_weights,
+    sample
+):
+    teacher_predictions = []
+
+    with torch.no_grad():
+        for teacher_model in teacher_models:
+            teacher_out = teacher_model(sample)
+            teacher_prob = torch.sigmoid(teacher_out["prediction"])
+            teacher_predictions.append(teacher_prob)
+
+    stacked = torch.stack(teacher_predictions, dim=0)
+
+    weights = torch.tensor(
+        teacher_weights,
+        dtype=stacked.dtype,
+        device=stacked.device
+    ).view(-1, 1, 1, 1, 1)
+
+    consensus = (stacked * weights).sum(dim=0)
+
+    if stacked.shape[0] > 1:
+        disagreement = stacked.std(dim=0)
+        agreement = torch.clamp(
+            1.0 - disagreement / 0.50,
+            min=0.0,
+            max=1.0
+        )
+    else:
+        agreement = torch.ones_like(consensus)
+
+    certainty = torch.abs(consensus - 0.5) * 2.0
+
+    confidence = torch.clamp(
+        certainty * agreement,
+        min=0.0,
+        max=1.0
+    )
+
+    return consensus.detach(), confidence.detach()
+
+
+def soft_consensus_distillation_loss(
+    student_logits,
+    teacher_consensus,
+    confidence
+):
+    distill_map = F.binary_cross_entropy_with_logits(
+        student_logits,
+        teacher_consensus,
+        reduction="none"
+    )
+
+    confidence_mask = (
+        confidence >= 0.30
+    ).float()
+
+    pixel_weight = (
+        0.25 + 0.75 * confidence
+    ) * confidence_mask
+
+    loss = (
+        distill_map * pixel_weight
+    ).sum() / (
+        pixel_weight.sum() + 1e-6
+    )
+
+    return loss
+
+
+def boundary_consensus_distillation_loss(
+    student_logits,
+    teacher_consensus,
+    confidence
+):
+    student_prob = torch.sigmoid(student_logits)
+
+    student_edge = sobel_edge_map(student_prob)
+    teacher_edge = sobel_edge_map(teacher_consensus)
+
+    edge_scale = teacher_edge / (
+        teacher_edge.amax(dim=(2, 3), keepdim=True) + 1e-6
+    )
+
+    confidence_mask = (
+        confidence >= 0.25
+    ).float()
+
+    pixel_weight = (
+        0.25 + 0.75 * confidence
+    ) * (
+        1.0 + edge_scale
+    ) * confidence_mask
+
+    edge_difference = torch.abs(
+        student_edge - teacher_edge
+    )
+
+    loss = (
+        edge_difference * pixel_weight
+    ).sum() / (
+        pixel_weight.sum() + 1e-6
+    )
+
+    return loss
+
+
 def confidence_filtered_ema_consistency_loss(
     student_logits,
     teacher_logits,
@@ -158,13 +533,13 @@ def confidence_filtered_ema_consistency_loss(
         reduction="none"
     )
 
-    consistency_loss = (
+    loss = (
         consistency_map * confidence_mask
     ).sum() / (
         confidence_mask.sum() + 1e-6
     )
 
-    return consistency_loss
+    return loss
 
 
 def update_ema_model(student_model, ema_model, decay):
@@ -185,32 +560,35 @@ def update_ema_model(student_model, ema_model, decay):
             ema_buffer.copy_(student_buffer)
 
 
-def train(model, ema_model, loader, optimizer, device):
+def train_one_epoch(
+    model,
+    ema_model,
+    teacher_models,
+    teacher_weights,
+    loader,
+    optimizer,
+    device,
+    current_epoch,
+    config
+):
     model.train()
     ema_model.eval()
 
     epoch_loss = 0.0
     epoch_model_loss = 0.0
-    epoch_ema_consistency = 0.0
+    epoch_soft_kd = 0.0
+    epoch_boundary_kd = 0.0
+    epoch_ema = 0.0
 
     epoch_jac = 0.0
     epoch_f1 = 0.0
     epoch_recall = 0.0
     epoch_precision = 0.0
 
-    loss_accumulator = {
-        "loss_final": 0.0,
-        "loss_band": 0.0,
-        "loss_dynamic_expert": 0.0,
-        "loss_ugel": 0.0,
-        "loss_spectral": 0.0,
-        "loss_region": 0.0,
-        "loss_consistency": 0.0,
-        "loss_router_entropy": 0.0,
-        "router_ugel_weight": 0.0,
-        "router_spectral_weight": 0.0,
-        "router_region_weight": 0.0
-    }
+    distill_ramp = min(
+        1.0,
+        float(current_epoch + 1) / float(DISTILL_RAMP_EPOCHS)
+    )
 
     for x, y, modalities in loader:
         x = x.to(device, dtype=torch.float32)
@@ -224,22 +602,42 @@ def train(model, ema_model, loader, optimizer, device):
             "modalities": modalities
         }
 
-        student_out = model(sample)
+        out = model(sample)
+
+        teacher_consensus, teacher_confidence = build_teacher_consensus(
+            teacher_models=teacher_models,
+            teacher_weights=teacher_weights,
+            sample=sample
+        )
+
+        loss_soft_kd = soft_consensus_distillation_loss(
+            student_logits=out["prediction"],
+            teacher_consensus=teacher_consensus,
+            confidence=teacher_confidence
+        )
+
+        loss_boundary_kd = boundary_consensus_distillation_loss(
+            student_logits=out["prediction"],
+            teacher_consensus=teacher_consensus,
+            confidence=teacher_confidence
+        )
 
         with torch.no_grad():
-            teacher_out = ema_model(sample)
+            ema_out = ema_model(sample)
 
-        ema_consistency_loss = confidence_filtered_ema_consistency_loss(
-            student_logits=student_out["prediction"],
-            teacher_logits=teacher_out["prediction"],
+        loss_ema = confidence_filtered_ema_consistency_loss(
+            student_logits=out["prediction"],
+            teacher_logits=ema_out["prediction"],
             confidence_threshold=EMA_CONFIDENCE_THRESHOLD
         )
 
-        model_loss = student_out["loss"]
+        model_loss = out["loss"]
 
         total_loss = (
             model_loss
-            + EMA_CONSISTENCY_WEIGHT * ema_consistency_loss
+            + distill_ramp * config["soft_kd_weight"] * loss_soft_kd
+            + distill_ramp * config["boundary_kd_weight"] * loss_boundary_kd
+            + EMA_CONSISTENCY_WEIGHT * loss_ema
         )
 
         total_loss.backward()
@@ -253,12 +651,11 @@ def train(model, ema_model, loader, optimizer, device):
 
         epoch_loss += total_loss.item()
         epoch_model_loss += model_loss.item()
-        epoch_ema_consistency += ema_consistency_loss.item()
+        epoch_soft_kd += loss_soft_kd.item()
+        epoch_boundary_kd += loss_boundary_kd.item()
+        epoch_ema += loss_ema.item()
 
-        for key in loss_accumulator.keys():
-            loss_accumulator[key] += student_out[key].item()
-
-        y_pred = torch.sigmoid(student_out["prediction"])
+        y_pred = torch.sigmoid(out["prediction"])
 
         batch_jac = []
         batch_f1 = []
@@ -287,16 +684,16 @@ def train(model, ema_model, loader, optimizer, device):
         epoch_precision / n_batches
     ]
 
-    loss_parts = {
+    losses = {
         "total_loss": epoch_loss / n_batches,
         "model_loss": epoch_model_loss / n_batches,
-        "ema_consistency": epoch_ema_consistency / n_batches
+        "soft_kd": epoch_soft_kd / n_batches,
+        "boundary_kd": epoch_boundary_kd / n_batches,
+        "ema_consistency": epoch_ema / n_batches,
+        "distill_ramp": distill_ramp
     }
 
-    for key in loss_accumulator.keys():
-        loss_parts[key] = loss_accumulator[key] / n_batches
-
-    return epoch_loss / n_batches, metrics, loss_parts
+    return epoch_loss / n_batches, metrics, losses
 
 
 def evaluate(model, loader, device):
@@ -307,20 +704,6 @@ def evaluate(model, loader, device):
     epoch_f1 = 0.0
     epoch_recall = 0.0
     epoch_precision = 0.0
-
-    loss_accumulator = {
-        "loss_final": 0.0,
-        "loss_band": 0.0,
-        "loss_dynamic_expert": 0.0,
-        "loss_ugel": 0.0,
-        "loss_spectral": 0.0,
-        "loss_region": 0.0,
-        "loss_consistency": 0.0,
-        "loss_router_entropy": 0.0,
-        "router_ugel_weight": 0.0,
-        "router_spectral_weight": 0.0,
-        "router_region_weight": 0.0
-    }
 
     with torch.no_grad():
         for x, y, modalities in loader:
@@ -336,9 +719,6 @@ def evaluate(model, loader, device):
             out = model(sample)
 
             epoch_loss += out["loss"].item()
-
-            for key in loss_accumulator.keys():
-                loss_accumulator[key] += out[key].item()
 
             y_pred = torch.sigmoid(out["prediction"])
 
@@ -369,22 +749,18 @@ def evaluate(model, loader, device):
         epoch_precision / n_batches
     ]
 
-    loss_parts = {}
-
-    for key in loss_accumulator.keys():
-        loss_parts[key] = loss_accumulator[key] / n_batches
-
-    return epoch_loss / n_batches, metrics, loss_parts
+    return epoch_loss / n_batches, metrics
 
 
 def run_experiment(path):
     model_name = "FocusNet"
 
     current_modality = infer_modality_from_path(path)
+    config = MODALITY_CONFIG[current_modality]
 
     experiment_name = (
         f"FocusNet_DGFR_BandHead_"
-        f"DynamicSpectralUncertaintyExpertRouting_EMA_"
+        f"CrossExpertConsensusDistillation_EMA_"
         f"modality_{current_modality}"
     )
 
@@ -417,6 +793,9 @@ def run_experiment(path):
         f"checkpoint_{current_modality}_{VARIANT_SLUG}.pth"
     )
 
+    teacher_directory = f"files/modality_wise/{model_name}"
+    teacher_prefix = current_modality
+
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
@@ -436,9 +815,11 @@ def run_experiment(path):
             "ema_decay": EMA_DECAY,
             "ema_consistency_weight": EMA_CONSISTENCY_WEIGHT,
             "ema_confidence_threshold": EMA_CONFIDENCE_THRESHOLD,
-            "loss": "Dynamic UGEL + Spectral Boundary + Region Calibration Router + EMA",
-            "augmentation": "Spatial Aug only",
-            "checkpoint_model": "EMA teacher"
+            "distill_ramp_epochs": DISTILL_RAMP_EPOCHS,
+            "soft_kd_weight": config["soft_kd_weight"],
+            "boundary_kd_weight": config["boundary_kd_weight"],
+            "teachers": str(config["teachers"]),
+            "initial_teacher": config["initial_teacher"]
         }
     )
 
@@ -452,10 +833,10 @@ def run_experiment(path):
     data_str += f"Weight Decay: {weight_decay}\n"
     data_str += f"Epochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
-    data_str += f"EMA Decay: {EMA_DECAY}\n"
-    data_str += f"EMA Consistency Weight: {EMA_CONSISTENCY_WEIGHT}\n"
-    data_str += f"EMA Confidence Threshold: {EMA_CONFIDENCE_THRESHOLD}\n"
-    data_str += f"Path: {path}\n"
+    data_str += f"Initial Teacher: {config['initial_teacher']}\n"
+    data_str += f"Teacher Specs: {config['teachers']}\n"
+    data_str += f"Soft KD Weight: {config['soft_kd_weight']}\n"
+    data_str += f"Boundary KD Weight: {config['boundary_kd_weight']}\n"
     data_str += f"Checkpoint: {checkpoint_path}\n"
 
     print_and_save(train_log_path, data_str)
@@ -463,22 +844,14 @@ def run_experiment(path):
     train_samples, valid_samples, test_samples = load_polypdb_modality_data(path)
     train_samples = shuffle(train_samples, random_state=42)
 
-    data_str = f"Dataset Size:\n"
-    data_str += (
+    data_str = (
+        f"Dataset Size:\n"
         f"Train: {len(train_samples)} - "
         f"Valid: {len(valid_samples)} - "
         f"Test: {len(test_samples)}\n"
     )
 
     print_and_save(train_log_path, data_str)
-
-    if len(train_samples) == 0 or len(valid_samples) == 0:
-        print_and_save(
-            train_log_path,
-            f"Skipping {current_modality}: empty train or validation split.\n"
-        )
-        wandb.finish()
-        return
 
     transform = A.Compose([
         A.Rotate(limit=35, p=0.30),
@@ -524,14 +897,27 @@ def run_experiment(path):
 
     model = FocusNet().to(device)
     ema_model = copy.deepcopy(model).to(device)
+
+    initialize_student_from_teacher(
+        student_model=model,
+        ema_model=ema_model,
+        device=device,
+        teacher_directory=teacher_directory,
+        prefix=teacher_prefix,
+        teacher_key=config["initial_teacher"]
+    )
+
     ema_model.eval()
 
     for param in ema_model.parameters():
         param.requires_grad = False
 
-    print(f"train model: {model_name}")
-    print(f"experiment: {experiment_name}")
-    print(f"path: {path}")
+    teacher_models, teacher_weights, teacher_names = load_teacher_models(
+        device=device,
+        teacher_directory=teacher_directory,
+        prefix=teacher_prefix,
+        teacher_specs=config["teachers"]
+    )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -546,29 +932,25 @@ def run_experiment(path):
         verbose=True
     )
 
-    print_and_save(
-        train_log_path,
-        "Optimizer: AdamW\n"
-        "Scheduler: ReduceLROnPlateau\n"
-        "Loss: Dynamic Expert Routing + EMA Consistency\n"
-        "Saved checkpoint: EMA model\n"
-    )
-
     best_valid_f1 = 0.0
     early_stopping_count = 0
 
     for epoch in range(num_epochs):
         start_time = time.time()
 
-        train_loss, train_metrics, train_parts = train(
+        train_loss, train_metrics, train_losses = train_one_epoch(
             model=model,
             ema_model=ema_model,
+            teacher_models=teacher_models,
+            teacher_weights=teacher_weights,
             loader=train_loader,
             optimizer=optimizer,
-            device=device
+            device=device,
+            current_epoch=epoch,
+            config=config
         )
 
-        valid_loss, valid_metrics, valid_parts = evaluate(
+        valid_loss, valid_metrics = evaluate(
             model=ema_model,
             loader=valid_loader,
             device=device
@@ -609,31 +991,11 @@ def run_experiment(path):
             "valid/recall": valid_metrics[2],
             "valid/precision": valid_metrics[3],
 
-            "train/model_loss": train_parts["model_loss"],
-            "train/ema_consistency": train_parts["ema_consistency"],
-            "train/loss_final": train_parts["loss_final"],
-            "train/loss_band": train_parts["loss_band"],
-            "train/loss_dynamic_expert": train_parts["loss_dynamic_expert"],
-            "train/loss_ugel": train_parts["loss_ugel"],
-            "train/loss_spectral": train_parts["loss_spectral"],
-            "train/loss_region": train_parts["loss_region"],
-            "train/loss_consistency": train_parts["loss_consistency"],
-            "train/router_entropy": train_parts["loss_router_entropy"],
-            "train/router_ugel_weight": train_parts["router_ugel_weight"],
-            "train/router_spectral_weight": train_parts["router_spectral_weight"],
-            "train/router_region_weight": train_parts["router_region_weight"],
-
-            "valid/loss_final": valid_parts["loss_final"],
-            "valid/loss_band": valid_parts["loss_band"],
-            "valid/loss_dynamic_expert": valid_parts["loss_dynamic_expert"],
-            "valid/loss_ugel": valid_parts["loss_ugel"],
-            "valid/loss_spectral": valid_parts["loss_spectral"],
-            "valid/loss_region": valid_parts["loss_region"],
-            "valid/loss_consistency": valid_parts["loss_consistency"],
-            "valid/router_entropy": valid_parts["loss_router_entropy"],
-            "valid/router_ugel_weight": valid_parts["router_ugel_weight"],
-            "valid/router_spectral_weight": valid_parts["router_spectral_weight"],
-            "valid/router_region_weight": valid_parts["router_region_weight"],
+            "train/model_loss": train_losses["model_loss"],
+            "train/soft_kd": train_losses["soft_kd"],
+            "train/boundary_kd": train_losses["boundary_kd"],
+            "train/ema_consistency": train_losses["ema_consistency"],
+            "train/distill_ramp": train_losses["distill_ramp"],
 
             "best_valid_f1": best_valid_f1
         })
@@ -660,10 +1022,11 @@ def run_experiment(path):
         )
 
         data_str += (
-            f"\t Valid Router "
-            f"- UGEL: {valid_parts['router_ugel_weight']:.4f} "
-            f"- Spectral: {valid_parts['router_spectral_weight']:.4f} "
-            f"- Region: {valid_parts['router_region_weight']:.4f}\n"
+            f"\t Distillation "
+            f"- Soft KD: {train_losses['soft_kd']:.4f} "
+            f"- Boundary KD: {train_losses['boundary_kd']:.4f} "
+            f"- EMA: {train_losses['ema_consistency']:.4f} "
+            f"- Ramp: {train_losses['distill_ramp']:.4f}\n"
         )
 
         print_and_save(train_log_path, data_str)
@@ -683,6 +1046,9 @@ def run_experiment(path):
     del ema_model
     del optimizer
     del scheduler
+
+    for teacher_model in teacher_models:
+        del teacher_model
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

@@ -16,7 +16,7 @@ from model.FocusNet import FocusNet
 from utils import create_dir, seeding, calculate_metrics
 
 
-VARIANT_SLUG = "dynamic_spectral_uncertainty_expert_routing_ema"
+VARIANT_SLUG = "cross_expert_consensus_distillation_ema"
 
 THRESHOLD_CANDIDATES = [
     0.25,
@@ -31,7 +31,8 @@ THRESHOLD_CANDIDATES = [
     0.70,
     0.75,
     0.80,
-    0.85
+    0.85,
+    0.90
 ]
 
 EVAL_PROTOCOL = "paper"
@@ -178,6 +179,13 @@ def calibrate_threshold(model, device, valid_samples, size):
                 "f2": f2
             }
 
+            print(
+                f"Threshold {threshold:.2f} | "
+                f"Jaccard: {jaccard:.4f} - "
+                f"F1: {f1:.4f} - "
+                f"F2: {f2:.4f}"
+            )
+
     best_threshold = max(
         threshold_scores.keys(),
         key=lambda t: (
@@ -229,7 +237,8 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
             y_pred = y_pred_prob[0].cpu().numpy()
             y_pred = np.squeeze(y_pred, axis=0)
             y_pred = y_pred > threshold
-            y_pred = y_pred.astype(np.int32) * 255
+            y_pred = y_pred.astype(np.int32)
+            y_pred = y_pred * 255
             y_pred = np.array(y_pred, dtype=np.uint8)
             y_pred = np.expand_dims(y_pred, axis=-1)
             y_pred = np.concatenate([y_pred, y_pred, y_pred], axis=2)
@@ -237,7 +246,13 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
         line = np.ones((size[0], 10, 3), dtype=np.uint8) * 255
 
         cat_images = np.concatenate(
-            [save_img, line, save_mask, line, y_pred],
+            [
+                save_img,
+                line,
+                save_mask,
+                line,
+                y_pred
+            ],
             axis=1
         )
 
@@ -256,25 +271,25 @@ def evaluate(model, device, save_path, test_samples, size, threshold):
 
     print(
         f"Threshold: {threshold:.2f} - "
-        f"Jaccard: {jaccard:.4f} - "
-        f"F1: {f1:.4f} - "
-        f"Recall: {recall:.4f} - "
-        f"Precision: {precision:.4f} - "
-        f"Acc: {acc:.4f} - "
-        f"F2: {f2:.4f}"
+        f"Jaccard: {jaccard:1.4f} "
+        f"- F1: {f1:1.4f} "
+        f"- Recall: {recall:1.4f} "
+        f"- Precision: {precision:1.4f} "
+        f"- Acc: {acc:1.4f} "
+        f"- F2: {f2:1.4f}"
     )
 
     print("Mean FPS: ", mean_fps)
 
     return {
-        "threshold": threshold,
         "jaccard": jaccard,
         "f1": f1,
         "recall": recall,
         "precision": precision,
         "accuracy": acc,
         "f2": f2,
-        "fps": mean_fps
+        "fps": mean_fps,
+        "threshold": threshold
     }
 
 
@@ -283,6 +298,7 @@ if __name__ == "__main__":
 
     model_name = "FocusNet"
     size = (256, 256)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     test_modality_list = [
@@ -296,19 +312,23 @@ if __name__ == "__main__":
     summary_results = {}
 
     for modality in test_modality_list:
+        print("\n" + "=" * 100)
+        print(f"Testing modality: {modality}")
+        print("=" * 100 + "\n")
+
         checkpoint_path = (
             f"files/modality_wise/{model_name}/"
             f"checkpoint_{modality}_{VARIANT_SLUG}.pth"
         )
 
-        test_path = f"data/PolypDB/PolypDB_modality_wise/{modality}"
-
         if not os.path.exists(checkpoint_path):
-            print(f"Skipping {modality}: checkpoint not found.")
+            print(f"Skipping {modality}: checkpoint not found: {checkpoint_path}")
             continue
 
+        test_path = f"data/PolypDB/PolypDB_modality_wise/{modality}"
+
         if not os.path.exists(test_path):
-            print(f"Skipping {modality}: path not found.")
+            print(f"Skipping {modality}: test path not found: {test_path}")
             continue
 
         _, valid_samples, split_test_samples = split_data(test_path)
@@ -321,6 +341,11 @@ if __name__ == "__main__":
         else:
             test_samples = split_test_samples
 
+        print(f"Checkpoint: {checkpoint_path}")
+        print(f"Validation size: {len(valid_samples)}")
+        print(f"Test size: {len(test_samples)}")
+        print(f"Eval protocol: {EVAL_PROTOCOL}")
+
         save_path = (
             f"files/modality_wise/{model_name}/"
             f"results_{VARIANT_SLUG}/{modality}"
@@ -331,7 +356,10 @@ if __name__ == "__main__":
         create_dir(f"{save_path}/joint")
 
         model = FocusNet().to(device)
-        model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+        model.load_state_dict(
+            torch.load(checkpoint_path, map_location=device),
+            strict=False
+        )
         model.eval()
 
         threshold = calibrate_threshold(

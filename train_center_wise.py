@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 import wandb
 
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
-from model.FocusNet import *
+from model.FocusNet_EFPM import FocusNet
 from metrics import DiceBCELoss
 from sklearn.utils import shuffle
 from lib import *
@@ -43,87 +43,7 @@ def load_test_data(path):
         image = os.path.join(path, "images", f"{image_name}.png")
         mask = os.path.join(path, "masks", f"{image_name}.png")
         samples.append((image, mask))
-
     return samples
-
-
-def load_polypdb_data_0(path):
-    def get_data(path, name, modality):
-        samples = []
-        images = sorted(glob(os.path.join(path, name, modality, "images", "*.jpg")))
-        image_names = [os.path.splitext(os.path.basename(file))[0] for file in images]
-
-        mask_path = os.path.join(path, name, modality, "masks")
-        for image_name in image_names:
-            image = os.path.join(path, name, modality, "images", f"{image_name}.jpg")
-            mask_jpg = os.path.join(mask_path, f"{image_name}.jpg")
-            mask_png = os.path.join(mask_path, f"{image_name}.png")
-            if os.path.exists(mask_jpg):
-                mask = mask_jpg
-            elif os.path.exists(mask_png):
-                mask = mask_png
-            else:
-                continue
-            samples.append((image, mask))
-        return samples
-
-    all_samples = []
-    modality_list = {'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
-                     'Karolinska': ['WLI'],
-                     'Simula': ['NBI', 'WLI']}
-    for name in ['BKAI', 'Karolinska', 'Simula']:
-        for modality in modality_list[name]:
-            all_samples += get_data(path, name, modality)
-
-    total_len = len(all_samples)
-    train_len = int(0.8 * total_len)
-    test_len = int(0.1 * total_len)
-    val_len = total_len - train_len - test_len
-
-    train_samples = all_samples[:train_len]
-    test_samples = all_samples[train_len:train_len + test_len]
-    valid_samples = all_samples[train_len + test_len:]
-
-    return [train_samples, test_samples, valid_samples]
-
-
-def load_polypdb_data(path):
-    def get_data(path, name, modality):
-        samples = []
-        images = sorted(glob(os.path.join(path, name, modality, "images", "*.jpg")))
-        image_names = [os.path.splitext(os.path.basename(file))[0] for file in images]
-
-        mask_path = os.path.join(path, name, modality, "masks")
-        for image_name in image_names:
-            image = os.path.join(path, name, modality, "images", f"{image_name}.jpg")
-            mask_jpg = os.path.join(mask_path, f"{image_name}.jpg")
-            mask_png = os.path.join(mask_path, f"{image_name}.png")
-            if os.path.exists(mask_jpg):
-                mask = mask_jpg
-            elif os.path.exists(mask_png):
-                mask = mask_png
-            else:
-                continue
-            samples.append((image, mask))
-        return samples
-
-    train_samples = []
-    valid_samples = []
-    test_samples = []
-    modality_list = {'BKAI': ['BLI', 'FICE', 'LCI', 'WLI'],
-                     'Karolinska': ['WLI'],
-                     'Simula': ['NBI', 'WLI']}
-    for name in ['BKAI', 'Karolinska', 'Simula']:
-        for modality in modality_list[name]:
-            modality_data = get_data(path, name, modality)
-            modality_len = len(modality_data)
-            modality_train_len = int(0.8 * modality_len)
-            modality_val_len = int(0.1 * modality_len)
-            train_samples += modality_data[:modality_train_len]
-            valid_samples += modality_data[modality_train_len:modality_train_len + modality_val_len]
-            test_samples += modality_data[modality_train_len + modality_val_len:]
-
-    return [train_samples, valid_samples, test_samples]
 
 
 def load_polypdb_wli_data(path):
@@ -136,12 +56,14 @@ def load_polypdb_wli_data(path):
             image = os.path.join(path, "images", f"{image_name}.jpg")
             mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
             mask_png = os.path.join(path, "masks", f"{image_name}.png")
+
             if os.path.exists(mask_png):
                 mask = mask_png
             elif os.path.exists(mask_jpg):
                 mask = mask_jpg
             else:
                 continue
+
             samples.append((image, mask))
         return samples
 
@@ -149,6 +71,7 @@ def load_polypdb_wli_data(path):
     modality_len = len(modality_data)
     modality_train_len = int(0.8 * modality_len)
     modality_val_len = int(0.1 * modality_len)
+
     train_samples = modality_data[:modality_train_len]
     valid_samples = modality_data[modality_train_len:modality_train_len + modality_val_len]
     test_samples = modality_data[modality_train_len + modality_val_len:]
@@ -156,75 +79,113 @@ def load_polypdb_wli_data(path):
     return [train_samples, valid_samples, test_samples]
 
 
-def global_intensity_nonlinear(image, p=0.5):
-    if random.random() > p:
+def make_band_mask(mask, kernel_size=9):
+    if mask.ndim == 3:
+        mask = mask[:, :, 0]
+    mask = (mask > 127).astype(np.uint8) * 255
+    k = np.ones((kernel_size, kernel_size), np.uint8)
+    dil = cv2.dilate(mask, k, iterations=1)
+    ero = cv2.erode(mask, k, iterations=1)
+    band = cv2.subtract(dil, ero)
+    return (band > 0).astype(np.float32)
+
+
+def radial_annulus_mask(h, w, r_low_ratio=0.05, r_high_ratio=0.30):
+    cy, cx = h // 2, w // 2
+    yy, xx = np.ogrid[:h, :w]
+    rr = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
+    rmax = np.sqrt(cy ** 2 + cx ** 2)
+    r_low = r_low_ratio * rmax
+    r_high = r_high_ratio * rmax
+    mask = ((rr >= r_low) & (rr <= r_high)).astype(np.float32)
+    return np.fft.ifftshift(mask)
+
+
+def fft_amplitude_mix_channel(src, ref, alpha, annulus):
+    if ref.shape != src.shape:
+        ref = cv2.resize(ref, (src.shape[1], src.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+    if annulus.shape != src.shape:
+        annulus = cv2.resize(annulus, (src.shape[1], src.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+    src_fft = np.fft.fft2(src)
+    ref_fft = np.fft.fft2(ref)
+
+    src_amp = np.abs(src_fft)
+    ref_amp = np.abs(ref_fft)
+    src_phase = np.angle(src_fft)
+
+    mixed_amp = src_amp * (1.0 - annulus) + ((1.0 - alpha) * src_amp + alpha * ref_amp) * annulus
+    mixed_fft = mixed_amp * np.exp(1j * src_phase)
+    mixed = np.fft.ifft2(mixed_fft).real
+    return mixed
+
+def edge_frequency_prior_mix(image, mask, ref_image, ref_mask, alpha_range=(0.10, 0.25), kernel_size=9):
+    h, w = image.shape[:2]
+
+    # resize reference to source size so FFT tensors match
+    ref_image = cv2.resize(ref_image, (w, h), interpolation=cv2.INTER_LINEAR)
+    ref_mask = cv2.resize(ref_mask, (w, h), interpolation=cv2.INTER_NEAREST)
+
+    band_src = make_band_mask(mask, kernel_size=kernel_size)
+    band_ref = make_band_mask(ref_mask, kernel_size=kernel_size)
+
+    if band_src.sum() < 10 or band_ref.sum() < 10:
         return image
 
-    image = image.astype(np.float32) / 255.0
+    band_soft = cv2.GaussianBlur(band_src.astype(np.float32), (0, 0), sigmaX=2.0)
+    band_soft = np.clip(band_soft, 0.0, 1.0)[:, :, None]
 
-    gamma = random.uniform(0.7, 1.5)
-    gain = random.uniform(0.85, 1.15)
+    src_edge = image.astype(np.float32) * band_src[:, :, None]
+    ref_edge = ref_image.astype(np.float32) * band_ref[:, :, None]
 
-    image = gain * np.power(np.clip(image, 0.0, 1.0), gamma)
-    image = np.clip(image, 0.0, 1.0)
+    annulus = radial_annulus_mask(
+        h, w,
+        r_low_ratio=random.uniform(0.03, 0.08),
+        r_high_ratio=random.uniform(0.18, 0.35)
+    )
+    alpha = random.uniform(*alpha_range)
 
-    image = (image * 255.0).astype(np.uint8)
-    return image
+    mixed = np.zeros_like(src_edge, dtype=np.float32)
+    for c in range(3):
+        mixed[:, :, c] = fft_amplitude_mix_channel(
+            src_edge[:, :, c],
+            ref_edge[:, :, c],
+            alpha,
+            annulus
+        )
 
-
-class DATASET(Dataset):
-    def __init__(self, images_path, masks_path, size, transform=None, use_gin=False, gin_p=0.5):
-        super().__init__()
-        self.images_path = images_path
-        self.masks_path = masks_path
-        self.transform = transform
-        self.n_samples = len(images_path)
-        self.size = size
-        self.use_gin = use_gin
-        self.gin_p = gin_p
-
-    def __getitem__(self, index):
-        image = cv2.imread(self.images_path[index], cv2.IMREAD_COLOR)
-        mask = cv2.imread(self.masks_path[index], cv2.IMREAD_GRAYSCALE)
-
-        if self.use_gin:
-            image = global_intensity_nonlinear(image, p=self.gin_p)
-
-        if self.transform is not None:
-            augmentations = self.transform(image=image, mask=mask)
-            image = augmentations["image"]
-            mask = augmentations["mask"]
-
-        image = cv2.resize(image, self.size)
-        image = np.transpose(image, (2, 0, 1))
-        image = image / 255.0
-
-        mask = cv2.resize(mask, self.size)
-        mask = np.expand_dims(mask, axis=0)
-        mask = mask / 255.0
-
-        return image, mask
-
-    def __len__(self):
-        return self.n_samples
+    mixed = np.clip(mixed, 0, 255)
+    out = image.astype(np.float32) * (1.0 - band_soft) + mixed * band_soft
+    out = np.clip(out, 0, 255).astype(np.uint8)
+    return out
 
 
 class PolypDB_DATASET(Dataset):
-    def __init__(self, samples_path, size, transform=None, use_gin=False, gin_p=0.5):
+    def __init__(self, samples_path, size, transform=None,
+                 use_edge_freq_prior=True, edge_freq_prior_p=0.30):
         super().__init__()
         self.samples_path = samples_path
         self.transform = transform
         self.n_samples = len(samples_path)
         self.size = size
-        self.use_gin = use_gin
-        self.gin_p = gin_p
+        self.use_edge_freq_prior = use_edge_freq_prior
+        self.edge_freq_prior_p = edge_freq_prior_p
 
     def __getitem__(self, index):
         image = cv2.imread(self.samples_path[index][0], cv2.IMREAD_COLOR)
         mask = cv2.imread(self.samples_path[index][1], cv2.IMREAD_GRAYSCALE)
 
-        if self.use_gin:
-            image = global_intensity_nonlinear(image, p=self.gin_p)
+        if self.use_edge_freq_prior and random.random() < self.edge_freq_prior_p and self.n_samples > 1:
+            ref_index = random.randrange(self.n_samples)
+            while ref_index == index and self.n_samples > 1:
+                ref_index = random.randrange(self.n_samples)
+
+            ref_image = cv2.imread(self.samples_path[ref_index][0], cv2.IMREAD_COLOR)
+            ref_mask = cv2.imread(self.samples_path[ref_index][1], cv2.IMREAD_GRAYSCALE)
+
+            if ref_image is not None and ref_mask is not None:
+                image = edge_frequency_prior_mix(image, mask, ref_image, ref_mask)
 
         if self.transform is not None:
             augmentations = self.transform(image=image, mask=mask)
@@ -342,7 +303,8 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_FreqAmpMix_WaveletEdgePrior_center"
+    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedEdgeLoss_EdgeFrequencyPriorMix_center"
+    variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss+EdgeFrequencyPriorMix"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -361,38 +323,43 @@ if __name__ == "__main__":
     batch_size = 16
     num_epochs = 500
     lr = 1e-4
+    weight_decay = 1e-4
     early_stopping_patience = 50
     checkpoint_path = f"files/center_wise/{model_name}/checkpoint.pth"
     path = "data/PolypDB/PolypDB_center_wise/Simula/WLI"
 
-    use_gin = False
-    gin_p = 0.0
+    use_edge_freq_prior = True
+    edge_freq_prior_p = 0.30
 
     wandb.init(
         project="polyp-segmentation-focusnet",
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+FreqAmpMix+WaveletEdgePrior",
+            "variant": variant_name,
             "setting": "center_wise",
             "image_size": image_size,
             "batch_size": batch_size,
             "epochs": num_epochs,
             "lr": lr,
+            "weight_decay": weight_decay,
             "early_stopping_patience": early_stopping_patience,
             "train_path": path,
-            "use_gin": use_gin,
-            "gin_p": gin_p
+            "use_edge_freq_prior": use_edge_freq_prior,
+            "edge_freq_prior_p": edge_freq_prior_p
         }
     )
 
-    data_str = f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nEpochs: {num_epochs}\n"
+    data_str = f"Experiment: {experiment_name}\n"
+    data_str += f"Variant: {variant_name}\n"
+    data_str += f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nWeight Decay: {weight_decay}\nEpochs: {num_epochs}\n"
     data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
-    data_str += f"Use GIN: {use_gin}\nGIN p: {gin_p}\n"
+    data_str += f"Use Edge Frequency Prior Mix: {use_edge_freq_prior}\n"
+    data_str += f"Edge Frequency Prior Mix p: {edge_freq_prior_p}\n"
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_wli_data(path)
-    _ = shuffle(train_samples, random_state=42)
+    train_samples = shuffle(train_samples, random_state=42)
 
     data_str = f"Dataset Size:\nTrain: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
     print_and_save(train_log_path, data_str)
@@ -401,25 +368,38 @@ if __name__ == "__main__":
         A.Rotate(limit=35, p=0.3),
         A.HorizontalFlip(p=0.3),
         A.VerticalFlip(p=0.3),
-        A.CoarseDropout(p=0.3, max_holes=10, max_height=32, max_width=32)
+        A.CoarseDropout(p=0.25, max_holes=8, max_height=24, max_width=24)
     ])
 
-    train_dataset = PolypDB_DATASET(train_samples, size, transform=transform, use_gin=use_gin, gin_p=gin_p)
-    valid_dataset = PolypDB_DATASET(valid_samples, size, transform=None, use_gin=False, gin_p=0.0)
+    train_dataset = PolypDB_DATASET(
+        train_samples,
+        size,
+        transform=transform,
+        use_edge_freq_prior=use_edge_freq_prior,
+        edge_freq_prior_p=edge_freq_prior_p
+    )
+
+    valid_dataset = PolypDB_DATASET(
+        valid_samples,
+        size,
+        transform=None,
+        use_edge_freq_prior=False,
+        edge_freq_prior_p=0.0
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = eval(model_name)().to(device)
+    model = FocusNet().to(device)
     print(f"train model: {model_name}")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, verbose=True)
     loss_fn = DiceBCELoss()
-    loss_name = "BCE Dice Loss"
+    loss_name = "BCE Dice Loss (model uses internal UGEL + band loss)"
 
-    data_str = f"Optimizer: Adam\nLoss: {loss_name}\n"
+    data_str = f"Optimizer: AdamW\nLoss: {loss_name}\n"
     print_and_save(train_log_path, data_str)
 
     best_valid_metrics = 0.0
@@ -470,7 +450,7 @@ if __name__ == "__main__":
         print_and_save(train_log_path, data_str)
 
         if early_stopping_count == early_stopping_patience:
-            data_str = f"Early stopping: validation loss stops improving from last {early_stopping_patience} continously.\n"
+            data_str = f"Early stopping: validation F1 stopped improving for {early_stopping_patience} consecutive epochs.\n"
             print_and_save(train_log_path, data_str)
             break
 

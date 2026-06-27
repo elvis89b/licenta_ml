@@ -6,7 +6,7 @@ from glob import glob
 import cv2
 from tqdm import tqdm
 import torch
-from model.FocusNet import *
+from model.FocusNet_EFPM import FocusNet
 from lib import *
 from utils import create_dir, seeding
 from utils import calculate_metrics
@@ -133,9 +133,9 @@ if __name__ == "__main__":
 
     """ Load the checkpoint """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # model = eval(model_name)()
+    # model = FocusNet()
    # model = eval(f'build_{model_name}')()
-    model = eval(model_name)()
+    model = FocusNet()
     model = model.to(device)
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
     model.eval()

@@ -25,3 +25,30 @@ wandb/
 # jupyter / misc
 .ipynb_checkpoints/
 .DS_Store
+# UGBF-FocusNet generated artifacts
+__pycache__/
+*.py[cod]
+*.pth
+*.pt
+*.ckpt
+*.zip
+wandb/
+wandb_logs_*/
+files/
+results*.txt
+*.pth
+*.pt
+*.ckpt
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# Experiment outputs
+wandb/
+wandb_logs_*/

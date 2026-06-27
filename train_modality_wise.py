@@ -6,11 +6,11 @@ import albumentations as A
 import cv2
 from glob import glob
 import torch
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import Dataset, DataLoader
 import wandb
 
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
-from model.FocusNet import *
+from model.FocusNet_UGEL import FocusNet
 from metrics import DiceBCELoss
 from sklearn.utils import shuffle
 from lib import *
@@ -271,7 +271,8 @@ if __name__ == "__main__":
     create_dir("files")
 
     model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_ModalityBalancedSampling_modality"
+    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedEdgeLoss_modality"
+    variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):
@@ -299,7 +300,7 @@ if __name__ == "__main__":
         name=experiment_name,
         config={
             "model": model_name,
-            "variant": "DGFR+BandHead+ModalityBalancedSampling",
+            "variant": variant_name,
             "setting": "modality_wise",
             "image_size": image_size,
             "batch_size": batch_size,
@@ -315,32 +316,9 @@ if __name__ == "__main__":
     print_and_save(train_log_path, data_str)
 
     train_samples, valid_samples, test_samples = load_polypdb_data(path)
-    _ = shuffle(train_samples, random_state=42)
+    train_samples = shuffle(train_samples, random_state=42)
 
     data_str = f"Dataset Size:\nTrain: {len(train_samples)} - Valid: {len(valid_samples)} - Test: {len(test_samples)}\n"
-    print_and_save(train_log_path, data_str)
-
-    modality_counts = {}
-    for sample in train_samples:
-        modality = sample[2]
-        modality_counts[modality] = modality_counts.get(modality, 0) + 1
-
-    sample_weights = []
-    for sample in train_samples:
-        modality = sample[2]
-        sample_weights.append(1.0 / modality_counts[modality])
-
-    sample_weights = torch.DoubleTensor(sample_weights)
-
-    train_sampler = WeightedRandomSampler(
-        weights=sample_weights,
-        num_samples=len(sample_weights),
-        replacement=True
-    )
-
-    data_str = "Train modality counts:\n"
-    for modality, count in modality_counts.items():
-        data_str += f"{modality}: {count}\n"
     print_and_save(train_log_path, data_str)
 
     transform = A.Compose([
@@ -356,7 +334,7 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         dataset=train_dataset,
         batch_size=batch_size,
-        sampler=train_sampler,
+        shuffle=True,
         num_workers=2
     )
 
@@ -368,7 +346,7 @@ if __name__ == "__main__":
     )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = eval(model_name)().to(device)
+    model = FocusNet().to(device)
     print(f"train model: {model_name}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 import wandb
 
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
-from model.FocusNet_UGEL import FocusNet
+from model.UBFNet import UBFNet
 from metrics import DiceBCELoss
 from sklearn.utils import shuffle
 from lib import *
@@ -270,8 +270,8 @@ if __name__ == "__main__":
     seeding(42)
     create_dir("files")
 
-    model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedEdgeLoss_modality"
+    model_name = 'UBFNet'
+    experiment_name = "UBFNet_modality_wise"
     variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
@@ -346,7 +346,7 @@ if __name__ == "__main__":
     )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = FocusNet().to(device)
+    model = UBFNet().to(device)
     print(f"train model: {model_name}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

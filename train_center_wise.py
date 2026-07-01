@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 import wandb
 
 from utils import seeding, create_dir, print_and_save, epoch_time, calculate_metrics
-from model.FocusNet_EFPM import FocusNet
+from model.UBFNet_EFPM import UBFNet_EFPM
 from metrics import DiceBCELoss
 from sklearn.utils import shuffle
 from lib import *
@@ -302,8 +302,8 @@ if __name__ == "__main__":
     seeding(42)
     create_dir("files")
 
-    model_name = 'FocusNet'
-    experiment_name = "FocusNet_DGFR_BandHead_UncertaintyGatedEdgeLoss_EdgeFrequencyPriorMix_center"
+    model_name = 'UBFNet_EFPM'
+    experiment_name = "UBFNet_EFPM_center_wise"
     variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss+EdgeFrequencyPriorMix"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
@@ -391,7 +391,7 @@ if __name__ == "__main__":
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = FocusNet().to(device)
+    model = UBFNet_EFPM().to(device)
     print(f"train model: {model_name}")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)

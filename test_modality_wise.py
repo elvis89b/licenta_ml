@@ -9,7 +9,7 @@ import cv2
 from tqdm import tqdm
 import torch
 
-from model.FocusNet_UGEL import FocusNet
+from model.UBFNet import UBFNet
 from lib import *
 from utils import create_dir, seeding, calculate_metrics
 
@@ -130,11 +130,11 @@ def evaluate(model, save_path, test_samples, size, device):
 if __name__ == "__main__":
     seeding(42)
 
-    model_name = 'FocusNet'
+    model_name = 'UBFNet'
     checkpoint_path = f"files/modality_wise/{model_name}/checkpoint.pth"
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = FocusNet().to(device)
+    model = UBFNet().to(device)
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
     model.eval()
     print(f"test model: {model_name}")

@@ -1,3 +1,7 @@
-from .FocusNet import FocusNetEFPM, FocusNetUGEL, build_focusnet
+from .UBFNet import UBFNet
+from .UBFNet_EFPM import UBFNet_EFPM
 
-__all__ = ["FocusNetEFPM", "FocusNetUGEL", "build_focusnet"]
+__all__ = [
+    "UBFNet",
+    "UBFNet_EFPM",
+]

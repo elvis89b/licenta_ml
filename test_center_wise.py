@@ -6,7 +6,7 @@ from glob import glob
 import cv2
 from tqdm import tqdm
 import torch
-from model.FocusNet_EFPM import FocusNet
+from model.UBFNet_EFPM import UBFNet_EFPM
 from lib import *
 from utils import create_dir, seeding
 from utils import calculate_metrics
@@ -128,14 +128,14 @@ if __name__ == "__main__":
     seeding(42)
 
     """ configs """
-    model_name = 'FocusNet'
+    model_name = 'UBFNet_EFPM'
     checkpoint_path = f"files/center_wise/{model_name}/checkpoint.pth"
 
     """ Load the checkpoint """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # model = FocusNet()
+    # model = UBFNet_EFPM()
    # model = eval(f'build_{model_name}')()
-    model = FocusNet()
+    model = UBFNet_EFPM()
     model = model.to(device)
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
     model.eval()

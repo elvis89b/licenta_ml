@@ -6,46 +6,18 @@ from .layers import BasicConv2d, DeformableConv2d, eca_layer
 from .pvtv2 import pvt_v2_b4
 
 
-class DiceBCELoss(nn.Module):
-    def __init__(self, smooth=1.0):
-        super().__init__()
-        self.smooth = smooth
+def DiceBCELoss(inputs, targets, smooth=1):
+    inputs = torch.sigmoid(inputs)
 
-    def forward(self, inputs, targets):
-        inputs = torch.sigmoid(inputs)
+    inputs = inputs.view(-1)
+    targets = targets.view(-1)
 
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
+    intersection = (inputs * targets).sum()
+    dice_loss = 1 - (2. * intersection + smooth) / (inputs.sum() + targets.sum() + smooth)
+    BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
+    Dice_BCE = BCE + dice_loss
 
-        intersection = (inputs * targets).sum()
-        dice_loss = 1.0 - (2.0 * intersection + self.smooth) / (
-            inputs.sum() + targets.sum() + self.smooth
-        )
-        bce = F.binary_cross_entropy(inputs, targets, reduction="mean")
-        return bce + dice_loss
-
-
-class WeightedDiceBCELoss(nn.Module):
-    def __init__(self, smooth=1.0):
-        super().__init__()
-        self.smooth = smooth
-
-    def forward(self, logits, targets, pixel_weight=None):
-        if pixel_weight is None:
-            pixel_weight = torch.ones_like(targets)
-
-        probs = torch.sigmoid(logits)
-
-        bce = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
-        bce = (bce * pixel_weight).sum() / (pixel_weight.sum() + 1e-6)
-
-        dims = (1, 2, 3)
-        intersection = (pixel_weight * probs * targets).sum(dim=dims)
-        denom = (pixel_weight * probs).sum(dim=dims) + (pixel_weight * targets).sum(dim=dims)
-        dice = 1.0 - (2.0 * intersection + self.smooth) / (denom + self.smooth)
-        dice = dice.mean()
-
-        return bce + dice
+    return Dice_BCE
 
 
 class _ASPPModuleDeformable(nn.Module):
@@ -97,9 +69,7 @@ class DEM(nn.Module):
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(0.5)
-        self.ret = lambda x, target: F.interpolate(
-            x, size=target.shape[-2:], mode='bilinear', align_corners=False
-        )
+        self.ret = lambda x, target: F.interpolate(x, size=target.shape[-2:], mode='bilinear', align_corners=False)
 
     def forward(self, x):
         x_1, x_2, x_3, x_4 = torch.split(x, self.in_channels // 4, dim=1)
@@ -213,9 +183,9 @@ class CIDM_A(nn.Module):
         return x, out
 
 
-class FocusNet(nn.Module):
+class UBFNet(nn.Module):
     def __init__(self, channel=32):
-        super(FocusNet, self).__init__()
+        super().__init__()
 
         self.pvt = pvt_v2_b4()
         path = 'pretrained_pth/pvt_v2_b4.pth'
@@ -229,6 +199,7 @@ class FocusNet(nn.Module):
         self.Translayer_pvt3 = BasicConv2d(320, channel, 1)
         self.Translayer_pvt4 = BasicConv2d(512, channel, 1)
 
+        self.translayer_context = BasicConv2d(128, channel, 1)
         self.context = DEM(64, channel)
 
         self.decoder1 = CIDM_M(channel)
@@ -236,47 +207,36 @@ class FocusNet(nn.Module):
 
         self.attention = FocusAttention(channel, channel)
 
-        self.seg_loss = DiceBCELoss()
-        self.weighted_seg_loss = WeightedDiceBCELoss()
+        self.res = lambda x, size: F.interpolate(x, size=size, mode='bilinear', align_corners=False)
+        self.loss_fn = DiceBCELoss
 
-        self.loss_w1 = 0.50
-        self.loss_w2 = 0.50
-        self.loss_w3 = 0.75
-        self.loss_w4 = 0.75
-        self.final_loss_weight = 1.00
+        self.final_loss_weight = 0.5
         self.consistency_weight = 0.15
-        self.band_loss_weight = 0.30
 
         self.band_head = nn.Sequential(
             BasicConv2d(channel * 2, channel, 3, padding=1),
-            nn.ReLU(inplace=True),
             BasicConv2d(channel, channel, 3, padding=1),
-            nn.ReLU(inplace=True),
             nn.Conv2d(channel, 1, kernel_size=1)
         )
-
-    def res(self, x, size):
-        return F.interpolate(x, size=size, mode='bilinear', align_corners=False)
+        self.band_loss_weight = 0.25
 
     def selective_agreement_loss(self, logit1, logit2, uncertainty_map):
         p1 = torch.sigmoid(logit1)
         p2 = torch.sigmoid(logit2)
+
         confidence = torch.clamp(1.0 - uncertainty_map, min=0.0, max=1.0)
-        return (torch.abs(p1 - p2) * confidence).mean()
+        loss = torch.abs(p1 - p2) * confidence
+        return loss.mean()
 
     def make_band_target(self, mask, kernel_size=7):
         pad = kernel_size // 2
+
         dilated = F.max_pool2d(mask, kernel_size=kernel_size, stride=1, padding=pad)
         eroded = -F.max_pool2d(-mask, kernel_size=kernel_size, stride=1, padding=pad)
-        band = dilated - eroded
-        return torch.clamp(band, 0.0, 1.0)
 
-    def normalize_uncertainty(self, u):
-        u = u.detach()
-        u_min = u.amin(dim=(2, 3), keepdim=True)
-        u_max = u.amax(dim=(2, 3), keepdim=True)
-        u = (u - u_min) / (u_max - u_min + 1e-6)
-        return torch.clamp(u, 0.0, 1.0)
+        band = dilated - eroded
+        band = torch.clamp(band, 0.0, 1.0)
+        return band
 
     def forward(self, sample):
         x = sample['images']
@@ -315,26 +275,20 @@ class FocusNet(nn.Module):
         band_pred = self.band_head(band_feat)
         band_pred_up = self.res(band_pred, base_size)
 
+        loss1 = self.loss_fn(out1, y)
+        loss2 = self.loss_fn(out2, y)
+        loss3 = self.loss_fn(out3, y)
+        loss4 = self.loss_fn(out4, y)
+        loss_final = self.loss_fn(out, y)
+
         uncertainty_full = self.res(coarse_uncertainty, base_size)
-        uncertainty_full = self.normalize_uncertainty(uncertainty_full)
+        loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
 
         band_target = self.make_band_target(y, kernel_size=7)
-        pixel_weight = 1.0 + 1.5 * uncertainty_full + 0.5 * band_target
-
-        loss1 = self.seg_loss(out1, y)
-        loss2 = self.seg_loss(out2, y)
-        loss3 = self.seg_loss(out3, y)
-        loss4 = self.seg_loss(out4, y)
-        loss_final = self.seg_loss(out, y)
-
-        loss_consistency = self.selective_agreement_loss(out1, out2, uncertainty_full)
-        loss_band = self.weighted_seg_loss(band_pred_up, band_target, pixel_weight=pixel_weight)
+        loss_band = self.loss_fn(band_pred_up, band_target)
 
         loss = (
-            self.loss_w1 * loss1
-            + self.loss_w2 * loss2
-            + self.loss_w3 * loss3
-            + self.loss_w4 * loss4
+            loss1 + loss2 + loss3 + loss4
             + self.final_loss_weight * loss_final
             + self.consistency_weight * loss_consistency
             + self.band_loss_weight * loss_band

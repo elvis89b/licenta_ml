@@ -272,7 +272,7 @@ if __name__ == "__main__":
 
     model_name = 'UBFNet'
     experiment_name = "UBFNet_modality_wise"
-    variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss"
+    variant_name = "BandHead+UncertaintyGatedEdgeLoss"
 
     train_log_path = f"files/modality_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):

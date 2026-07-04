@@ -304,7 +304,7 @@ if __name__ == "__main__":
 
     model_name = 'UBFNet_EFPM'
     experiment_name = "UBFNet_EFPM_center_wise"
-    variant_name = "DGFR+BandHead+UncertaintyGatedEdgeLoss+EdgeFrequencyPriorMix"
+    variant_name = "BandHead+UncertaintyGatedEdgeLoss+EdgeFrequencyPriorMix"
 
     train_log_path = f"files/center_wise/{model_name}/train_log.txt"
     if os.path.exists(train_log_path):

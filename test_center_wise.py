@@ -21,13 +21,12 @@ def load_test_data(path):
         image = os.path.join(path, "images", f"{image_name}.jpg")
         mask_png = os.path.join(path, "masks", f"{image_name}.png")
         mask_jpg = os.path.join(path, "masks", f"{image_name}.jpg")
-        # 判断 .jpg 掩码文件是否存在，否则使用 .png
+
         if os.path.exists(mask_png):
             mask = mask_png
         elif os.path.exists(mask_jpg):
             mask = mask_jpg
         else:
-            # 如果掩码文件不存在，跳过该样本
             continue
 
         samples.append((image, mask))
@@ -36,13 +35,6 @@ def load_test_data(path):
 
 
 def evaluate(model, save_path, test_samples, size):
-    """ Loading other comparitive model masks """
-    # comparison_path = "/media/nikhil/LAB/ML/ME/COMPARISON/Kvasir-SEG/"
-
-    # unet_mask = sorted(glob(os.path.join(comparison_path, "UNET", "results", "Kvasir-SEG", "mask", "*")))
-    # deeplabv3plus_mask = sorted(glob(os.path.join(comparison_path, "DeepLabV3+_50", "results", "Kvasir-SEG", "mask", "*")))
-
-
     metrics_score = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     time_taken = []
 
